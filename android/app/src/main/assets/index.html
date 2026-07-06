@@ -107,6 +107,14 @@
     .chan .info b { font-size: 13.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chan .info small { color: var(--muted); font-size: 11px; }
     .chan .q { font-size: 10px; font-weight: 700; color: var(--muted); background: rgba(255,255,255,.06); padding: 3px 7px; border-radius: 6px; flex: 0 0 auto; }
+    .fav { flex: 0 0 auto; background: none; border: none; cursor: pointer; color: var(--muted); padding: 6px; border-radius: 8px; display: grid; place-items: center; }
+    .fav:hover { color: #ffcf4d; background: rgba(255,255,255,.06); }
+    .fav svg { width: 17px; height: 17px; }
+    .fav.on { color: #ffcf4d; }
+    .fav.on svg { fill: #ffcf4d; }
+    .search-tools { display: flex; gap: 7px; margin-top: 10px; }
+    .gbtn { display: inline-flex; align-items: center; gap: 6px; }
+    .gbtn svg { width: 14px; height: 14px; }
     .chan.dead { opacity: .45; }
     .chan.dead .info b { text-decoration: line-through; text-decoration-color: rgba(255,255,255,.25); }
     .chan .dead-tag { color: #ffb3ba; background: rgba(255,90,106,.18); }
@@ -208,6 +216,9 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="search" class="focusable" type="text" placeholder="Buscar…" />
         </div>
+        <div class="search-tools">
+          <button id="globalBtn" class="chip focusable gbtn" tabindex="0"><i data-lucide="globe"></i>Buscar en todos los países</button>
+        </div>
         <div class="chips" id="chips"></div>
       </div>
       <div class="chan-list" id="chanList"></div>
@@ -282,11 +293,45 @@
     let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null;
     const deadUrls = new Set(); // canales que han fallado
 
+    // ----- Favoritos (persistentes) -----
+    const FAV_KEY = "sv_favs";
+    let favs = [];
+    try { favs = JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); } catch {}
+    const favUrls = new Set(favs.map((f) => f.url));
+    const saveFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); } catch {} };
+    function toggleFav(ch) {
+      if (favUrls.has(ch.url)) { favUrls.delete(ch.url); favs = favs.filter((f) => f.url !== ch.url); }
+      else { favUrls.add(ch.url); favs.push({ url: ch.url, name: ch.name, logo: ch.logo, group: ch.group, quality: ch.quality, country: ch.country || "" }); }
+      saveFavs();
+      const fc = document.getElementById("favCnt"); if (fc) fc.textContent = favs.length;
+    }
+
+    // ----- Búsqueda global -----
+    let globalMode = false, globalIndex = null;
+
     // ----- Col 1: países -----
     const navEl = $("nav");
 
     // Sección especial de Eventos (FIFA+ / deportes internacionales)
     const clearActive = () => document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active"));
+
+    // --- Favoritos (primero, muy accesible) ---
+    const favLbl = document.createElement("div"); favLbl.className = "side-label"; favLbl.innerHTML = '<i data-lucide="star"></i>Mis favoritos'; navEl.appendChild(favLbl);
+    const favBtn = document.createElement("button");
+    favBtn.className = "country focusable"; favBtn.tabIndex = 0;
+    favBtn.innerHTML = '<span class="lbl"><i data-lucide="star"></i>Favoritos</span><span class="cnt" id="favCnt">' + favs.length + '</span>';
+    favBtn.onclick = () => { clearActive(); favBtn.classList.add("active"); loadFavorites(); };
+    navEl.appendChild(favBtn);
+
+    function loadFavorites() {
+      globalMode = false; updateGlobalBtn();
+      $("chTitle").textContent = "Favoritos";
+      allChannels = favs.slice();
+      activeGroup = "Todos"; $("search").value = "";
+      $("chips").style.display = favs.length ? "" : "none";
+      buildChips(); applyFilters();
+      $("chSub").textContent = favs.length ? favs.length + " canales guardados" : "Marca canales con la estrella para guardarlos";
+    }
     const evLbl = document.createElement("div"); evLbl.className = "side-label"; evLbl.innerHTML = '<i data-lucide="zap"></i>Eventos'; navEl.appendChild(evLbl);
     // --- Agregador genérico: junta varias listas verificadas y deduplica ---
     const LATAM_CODES = ["mx","ar","co","cl","pe","ec","ve","uy","py","bo","cr","do","gt","hn","sv","ni","pa","pr"];
@@ -295,6 +340,7 @@
 
     async function aggregate(codes, filterFn, title, subFn) {
       clearActive();
+      globalMode = false; updateGlobalBtn();
       $("chTitle").textContent = title; $("chSub").textContent = "Reuniendo canales…";
       const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
       for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
@@ -524,6 +570,7 @@
     // ----- Listas -----
     async function loadPlaylist(listUrl, title, preGroup) {
       if (!listUrl) return;
+      globalMode = false; updateGlobalBtn();
       $("chTitle").textContent = title || "Canales"; $("chSub").textContent = "Cargando…";
       const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
       for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
@@ -569,8 +616,47 @@
       if (q) list = list.filter((c)=>c.name.toLowerCase().includes(q) || (c.group||"").toLowerCase().includes(q));
       renderChannels(list);
     }
-    $("search").addEventListener("input", applyFilters);
-    $("loadList").onclick = () => { document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); loadPlaylist($("playlistUrl").value.trim(), "Playlist"); };
+    // Enrutado del buscador: local (país actual) o global (todos los países)
+    function onSearch() { if (globalMode) runGlobalSearch($("search").value.trim()); else applyFilters(); }
+    $("search").addEventListener("input", onSearch);
+
+    function updateGlobalBtn() {
+      $("globalBtn").classList.toggle("active", globalMode);
+      $("search").placeholder = globalMode ? "Buscar en todos los países…" : "Buscar…";
+      $("chips").style.display = globalMode ? "none" : "";
+    }
+    $("globalBtn").onclick = () => { globalMode = !globalMode; updateGlobalBtn(); onSearch(); };
+
+    async function buildGlobalIndex() {
+      if (globalIndex) return;
+      const codes = [];
+      NAV.forEach((sec) => sec.items.forEach(([name, c]) => codes.push([c, name])));
+      codes.push(["int", "Internacional"]);
+      const parts = await Promise.all(codes.map(([c, cname]) =>
+        fetch(R + c + ".m3u")
+          .then((r) => r.text()).then((t) => parseM3U(t).map((ch) => { ch.country = cname; return ch; })).catch(() => [])
+      ));
+      const seen = new Set(); const merged = [];
+      for (const arr of parts) for (const ch of arr) { if (seen.has(ch.url)) continue; seen.add(ch.url); merged.push(ch); }
+      globalIndex = merged;
+    }
+
+    async function runGlobalSearch(q) {
+      $("chTitle").textContent = "Búsqueda global";
+      if (!q) { $("chanList").innerHTML = ""; $("note").textContent = ""; $("chSub").textContent = "Escribe para buscar en todos los países"; return; }
+      if (!globalIndex) {
+        $("chSub").textContent = "Indexando canales de todos los países…";
+        const list = $("chanList"); list.innerHTML = "";
+        for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
+        await buildGlobalIndex();
+      }
+      const ql = q.toLowerCase();
+      const res = globalIndex.filter((c) => c.name.toLowerCase().includes(ql));
+      $("chSub").textContent = res.length + " resultados en todos los países";
+      renderChannels(res);
+    }
+
+    $("loadList").onclick = () => { globalMode = false; updateGlobalBtn(); document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); loadPlaylist($("playlistUrl").value.trim(), "Playlist"); };
 
     const MAX = 400;
     function renderChannels(items) {
@@ -583,14 +669,20 @@
         const row = document.createElement("div"); row.className = "chan focusable" + (dead ? " dead" : ""); row.tabIndex = 0;
         const img = ch.logo ? `<img src="${ch.logo}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : "";
         const tag = dead ? `<div class="q dead-tag">SIN SEÑAL</div>` : (ch.quality ? `<div class="q">${ch.quality.toUpperCase()}</div>` : "");
+        const sub = ch.country ? `${ch.country} · ${ch.group||""}` : (ch.group||"");
+        const on = favUrls.has(ch.url) ? " on" : "";
         row.innerHTML =
           `<div class="logo"><div class="mono">${initials(ch.name)}</div>${img}</div>
-           <div class="info"><b>${ch.name}</b><small>${ch.group||""}</small></div>
-           ${tag}`;
+           <div class="info"><b>${ch.name}</b><small>${sub}</small></div>
+           ${tag}
+           <button class="fav${on}" title="Favorito" tabindex="-1"><i data-lucide="star"></i></button>`;
         row.onclick = () => play(ch, row, idx);
+        const star = row.querySelector(".fav");
+        star.addEventListener("click", (e) => { e.stopPropagation(); toggleFav(ch); star.classList.toggle("on"); });
         frag.appendChild(row);
       });
       list.appendChild(frag);
+      icons();
       $("note").textContent = items.length > MAX ? `Mostrando ${MAX} de ${items.length}. Afina con el buscador.` : "";
     }
 
