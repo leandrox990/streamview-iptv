@@ -51,10 +51,18 @@
     .phead .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 
     /* focus ring para navegación con mando */
+    * { -webkit-tap-highlight-color: transparent; }
     :focus { outline: none; }
+    *:focus { outline: none; }
     .focusable.focused, .focusable:focus-visible {
       box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px rgba(124,92,255,.3);
       border-color: transparent !important;
+    }
+    /* inputs: foco limpio, sin doble halo incómodo */
+    .search input:focus, .search input.focused { box-shadow: none !important; }
+    .search:focus-within { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+    input.field.focused, input.field:focus-visible, input.field:focus {
+      box-shadow: 0 0 0 2px var(--accent) !important; border-color: transparent !important;
     }
     /* escalado al enfocar, estilo TV */
     .chan { transition: transform .14s, background .14s, box-shadow .14s; }
@@ -290,7 +298,12 @@
     // la hace ExoPlayer nativo (mucho más eficiente en TV/Firestick).
     const NATIVE = window.AndroidTV || null;
     let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
-    let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null;
+    let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null, previewOn = false;
+    // Rect del panel de preview en píxeles del dispositivo (para ExoPlayer nativo)
+    function stageRect() {
+      const r = $("stage").getBoundingClientRect(); const s = window.devicePixelRatio || 1;
+      return [Math.round(r.left*s), Math.round(r.top*s), Math.round(r.width*s), Math.round(r.height*s)];
+    }
     const deadUrls = new Set(); // canales que han fallado
 
     // ----- Favoritos (persistentes) -----
@@ -467,6 +480,7 @@
     }
 
     function play(ch, rowEl, index) {
+      const sameNative = NATIVE && previewOn && currentRawUrl === ch.url;
       currentRawUrl = ch.url;
       if (typeof index === "number") viewIndex = index;
       hideError();
@@ -475,9 +489,16 @@
       currentRow = rowEl || null;
       if (rowEl) rowEl.classList.add("playing");
 
-      // En la app Android: no reproducimos preview con hls; mostramos póster y
-      // la reproducción real la hace ExoPlayer al pulsar OK.
-      if (NATIVE) { showLoading(false); video.style.display = "none"; showPoster(ch); return; }
+      // App Android: preview EN VIVO con ExoPlayer en el panel derecho.
+      // Segundo OK sobre el mismo canal → pantalla completa.
+      if (NATIVE) {
+        if (sameNative) { goFullscreen(); return; }
+        const b = stageRect();
+        NATIVE.setSource(ch.url, ch.name);
+        NATIVE.showPreview(b[0], b[1], b[2], b[3]);
+        previewOn = true;
+        return;
+      }
 
       $("emptyPv").style.display = "none"; video.style.display = "block";
       showLoading(true);
@@ -504,8 +525,8 @@
     // Pantalla completa
     function goFullscreen() {
       if (!currentRawUrl) return;
-      // App Android: delegar en ExoPlayer nativo
-      if (NATIVE) { NATIVE.fsPlay(currentRawUrl, $("pvTitle").textContent || ""); return; }
+      // App Android: expandir el preview nativo a pantalla completa
+      if (NATIVE) { if (!previewOn) { const b = stageRect(); NATIVE.setSource(currentRawUrl, $("pvTitle").textContent||""); NATIVE.showPreview(b[0],b[1],b[2],b[3]); previewOn = true; } NATIVE.enterFs(); return; }
       const el = $("stage");
       video.controls = true;
       if (el.requestFullscreen) el.requestFullscreen();
@@ -514,18 +535,21 @@
     }
 
     // Llamadas desde la app nativa (ExoPlayer)
-    window.tvNav = function (dir) {
+    window.tvNav = function (dir) {   // cambiar de canal en pantalla completa
       if (!viewList.length) return;
       let i = viewIndex + dir;
       i = Math.max(0, Math.min(viewList.length - 1, i));
       if (i === viewIndex) return;
+      const ch = viewList[i]; viewIndex = i; currentRawUrl = ch.url; setNowInfo(ch);
       const rows = document.querySelectorAll("#chanList .chan");
-      play(viewList[i], rows[i], i);
-      if (NATIVE) NATIVE.fsPlay(currentRawUrl, viewList[i].name);
+      document.querySelectorAll(".chan.playing").forEach((x)=>x.classList.remove("playing"));
+      if (rows[i]) { rows[i].classList.add("playing"); currentRow = rows[i]; }
+      if (NATIVE) NATIVE.setSource(ch.url, ch.name); // sigue en pantalla completa
     };
-    window.tvExit = function () {
+    window.tvExit = function () {   // salió de fullscreen: volver a la lista
       if (currentRow) { currentRow.focus(); currentRow.scrollIntoView({ block: "center" }); }
     };
+    window.tvHidden = function () { previewOn = false; }; // se cerró el preview
     const inFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement;
     // Muestra la info (banner) unos segundos y luego la oculta
     function showBanner(ms = 3500) {

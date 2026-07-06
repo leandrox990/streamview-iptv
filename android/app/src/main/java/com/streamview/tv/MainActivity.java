@@ -19,7 +19,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.OptIn;
 import androidx.media3.common.MediaItem;
@@ -35,7 +34,6 @@ public class MainActivity extends Activity {
     private WebView web;
     private FrameLayout root;
 
-    // Reproductor nativo para pantalla completa
     private ExoPlayer player;
     private PlayerView playerView;
     private FrameLayout playerContainer;
@@ -43,7 +41,10 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Runnable hideBanner;
 
-    private boolean fsActive = false;
+    private boolean fsActive = false;     // pantalla completa
+    private boolean previewing = false;   // preview en el panel derecho
+    private int pX, pY, pW, pH;           // rect del preview (px)
+    private String currentTitle = "";
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -56,11 +57,10 @@ public class MainActivity extends Activity {
         root = new FrameLayout(this);
         setContentView(root);
 
-        // --- WebView (interfaz) ---
+        // --- WebView ---
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -75,13 +75,16 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new NativeBridge(), "AndroidTV");
 
-        // --- Contenedor del reproductor nativo (encima, oculto) ---
+        // --- Reproductor nativo (encima, oculto). No roba el foco del mando. ---
         playerContainer = new FrameLayout(this);
         playerContainer.setBackgroundColor(Color.BLACK);
         playerContainer.setVisibility(View.GONE);
+        playerContainer.setFocusable(false);
+        playerContainer.setFocusableInTouchMode(false);
 
         playerView = new PlayerView(this);
         playerView.setUseController(false);
+        playerView.setFocusable(false);
         playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
         playerContainer.addView(playerView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -105,10 +108,7 @@ public class MainActivity extends Activity {
         playerView.setPlayer(player);
         player.setPlayWhenReady(true);
         player.addListener(new Player.Listener() {
-            @Override
-            public void onPlayerError(PlaybackException error) {
-                showBanner("Canal no disponible");
-            }
+            @Override public void onPlayerError(PlaybackException error) { showBanner("Canal no disponible"); }
         });
 
         web.loadUrl("file:///android_asset/index.html");
@@ -121,34 +121,50 @@ public class MainActivity extends Activity {
     // ---------- Puente JavaScript ----------
     private class NativeBridge {
         @JavascriptInterface
-        public void fsPlay(final String url, final String title) {
-            ui.post(() -> startFullscreen(url, title));
+        public void setSource(final String url, final String title) {
+            ui.post(() -> { currentTitle = title == null ? "" : title;
+                if (url == null || url.isEmpty()) return;
+                player.setMediaItem(MediaItem.fromUri(url)); player.prepare(); player.play();
+                if (fsActive) showBanner(currentTitle);
+            });
         }
         @JavascriptInterface
-        public void fsStop() {
-            ui.post(() -> stopFullscreen());
+        public void showPreview(final int x, final int y, final int w, final int h) {
+            ui.post(() -> { pX = x; pY = y; pW = w; pH = h; previewing = true; fsActive = false;
+                applyBounds(x, y, w, h); playerContainer.setVisibility(View.VISIBLE); });
+        }
+        @JavascriptInterface
+        public void enterFs() {
+            ui.post(() -> { fsActive = true; applyFull(); enterImmersive();
+                playerContainer.setVisibility(View.VISIBLE); showBanner(currentTitle); });
+        }
+        @JavascriptInterface
+        public void exitFs() {
+            ui.post(() -> backToPreview());
+        }
+        @JavascriptInterface
+        public void hide() {
+            ui.post(() -> { previewing = false; fsActive = false; player.stop();
+                playerContainer.setVisibility(View.GONE); exitImmersive(); });
         }
     }
 
-    private void startFullscreen(String url, String title) {
-        if (url == null || url.isEmpty()) return;
-        fsActive = true;
-        playerContainer.setVisibility(View.VISIBLE);
-        playerContainer.requestFocus();
-        enterImmersive();
-        player.setMediaItem(MediaItem.fromUri(url));
-        player.prepare();
-        player.play();
-        showBanner(title);
+    private void applyBounds(int x, int y, int w, int h) {
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h);
+        lp.leftMargin = x; lp.topMargin = y; lp.gravity = Gravity.TOP | Gravity.START;
+        playerContainer.setLayoutParams(lp);
+    }
+    private void applyFull() {
+        playerContainer.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
-    private void stopFullscreen() {
+    private void backToPreview() {
         fsActive = false;
-        player.stop();
-        player.clearMediaItems();
-        playerContainer.setVisibility(View.GONE);
         exitImmersive();
-        // Devolver el foco a la lista de canales en la web
+        if (previewing) { applyBounds(pX, pY, pW, pH); }
+        else { playerContainer.setVisibility(View.GONE); }
+        banner.setVisibility(View.GONE);
         web.evaluateJavascript("window.tvExit && window.tvExit();", null);
     }
 
@@ -162,12 +178,9 @@ public class MainActivity extends Activity {
 
     private void enterImmersive() {
         getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+                View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
-
     private void exitImmersive() {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
@@ -176,28 +189,21 @@ public class MainActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (fsActive && event.getAction() == KeyEvent.ACTION_DOWN) {
-            int k = event.getKeyCode();
-            switch (k) {
+            switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                 case KeyEvent.KEYCODE_MEDIA_NEXT:
-                    web.evaluateJavascript("window.tvNav && window.tvNav(1);", null);
-                    showBanner(null);
-                    return true;
+                    web.evaluateJavascript("window.tvNav && window.tvNav(1);", null); showBanner(null); return true;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                 case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
-                    web.evaluateJavascript("window.tvNav && window.tvNav(-1);", null);
-                    showBanner(null);
-                    return true;
+                    web.evaluateJavascript("window.tvNav && window.tvNav(-1);", null); showBanner(null); return true;
                 case KeyEvent.KEYCODE_BACK:
                 case KeyEvent.KEYCODE_ESCAPE:
-                    stopFullscreen();
-                    return true;
+                    backToPreview(); return true;
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
                 case KeyEvent.KEYCODE_DPAD_UP:
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    showBanner(null); // mostrar info; sin pausa (es en vivo)
-                    return true;
+                    showBanner(null); return true; // en vivo: sin pausa
             }
         }
         return super.dispatchKeyEvent(event);
@@ -206,29 +212,17 @@ public class MainActivity extends Activity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (fsActive) { stopFullscreen(); return true; }
+            if (fsActive) { backToPreview(); return true; }
+            if (previewing) { // salir del preview y volver solo a la lista
+                previewing = false; player.stop(); playerContainer.setVisibility(View.GONE);
+                web.evaluateJavascript("window.tvHidden && window.tvHidden();", null); return true;
+            }
             if (web.canGoBack()) { web.goBack(); return true; }
         }
         return super.onKeyDown(keyCode, event);
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (player != null) player.pause();
-        web.onPause();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        web.onResume();
-        if (player != null && fsActive) player.play();
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (player != null) { player.release(); player = null; }
-        super.onDestroy();
-    }
+    @Override protected void onPause() { super.onPause(); if (player != null) player.pause(); web.onPause(); }
+    @Override protected void onResume() { super.onResume(); web.onResume(); if (player != null && (fsActive || previewing)) player.play(); }
+    @Override protected void onDestroy() { if (player != null) { player.release(); player = null; } super.onDestroy(); }
 }
