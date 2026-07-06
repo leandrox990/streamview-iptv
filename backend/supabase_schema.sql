@@ -30,7 +30,7 @@ alter table app_config enable row level security;
 
 -- ---------- Login (crea sesión y expulsa la anterior) ----------
 create or replace function sv_login(p_user text, p_pass text, p_device text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare a accounts; sess uuid;
 begin
   select * into a from accounts where username = lower(trim(p_user));
@@ -53,7 +53,7 @@ end $$;
 
 -- ---------- Validación periódica (single-device) ----------
 create or replace function sv_validate(p_user text, p_session uuid)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare a accounts;
 begin
   select * into a from accounts where username = lower(trim(p_user));
@@ -68,7 +68,7 @@ end $$;
 
 -- ---------- Config pública (versión de la app) ----------
 create or replace function sv_config()
-returns json language sql security definer set search_path = public as $$
+returns json language sql security definer set search_path = public, extensions as $$
   select json_build_object(
     'latest_version', (select value from app_config where key = 'latest_version'),
     'min_version',    (select value from app_config where key = 'min_version'),
@@ -78,7 +78,7 @@ $$;
 
 -- ---------- Panel admin (todo protegido por token) ----------
 create or replace function sv_admin(p_token text, p_action text, p_payload json default '{}')
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare tok text;
 begin
   select value into tok from app_config where key = 'admin_token';
