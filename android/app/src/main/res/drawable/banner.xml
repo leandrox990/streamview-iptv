@@ -1,11 +1,26 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="320dp" android:height="180dp"
     android:viewportWidth="320" android:viewportHeight="180">
-    <path android:fillColor="#12121F" android:pathData="M0,0h320v180h-320z"/>
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#7C5CFF"
-        android:strokeWidth="9"
-        android:strokeLineCap="round"
-        android:pathData="M120,70 C120,63 113,59 104,59 C94,59 88,64 88,72 C88,88 118,82 118,98 C118,106 111,111 102,111 C92,111 86,106 86,98" />
+
+    <!-- Fondo degradado -->
+    <path android:pathData="M0,0 L320,0 L320,180 L0,180 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear"
+                android:startX="0" android:startY="0" android:endX="320" android:endY="180"
+                android:startColor="#6A4CFF" android:endColor="#FF4D8D" />
+        </aapt:attr>
+    </path>
+
+    <!-- Disco con botón de play -->
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.16"
+        android:pathData="M96,90 m-52,0 a52,52 0 1,0 104,0 a52,52 0 1,0 -104,0" />
+    <path android:fillColor="#FFFFFF"
+        android:strokeColor="#FFFFFF" android:strokeWidth="8" android:strokeLineJoin="round"
+        android:pathData="M84,68 L84,112 L122,90 Z" />
+
+    <!-- Marca "S" a la derecha del play como acento (barras de onda) -->
+    <path android:fillColor="#FFFFFF" android:pathData="M182,74 h96 v8 h-96 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.75" android:pathData="M182,92 h72 v7 h-72 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.5" android:pathData="M182,108 h48 v6 h-48 Z" />
 </vector>
