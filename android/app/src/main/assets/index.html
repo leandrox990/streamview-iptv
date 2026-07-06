@@ -157,6 +157,12 @@
     .hero:hover .hintfs, .hero.focused .hintfs { opacity: 1; }
     .tvhint { position: absolute; bottom: 14px; right: 24px; z-index: 3; color: #aeb2c0; font-size: 11px; }
 
+    /* En pantalla completa: ocultar overlays; mostrar solo como banner temporal */
+    .hero.fs .hero-info, .hero.fs .scrim, .hero.fs .tvhint, .hero.fs .hintfs {
+      opacity: 0; transition: opacity .35s ease; pointer-events: none;
+    }
+    .hero.fs.banner .hero-info, .hero.fs.banner .scrim { opacity: 1; }
+
     .empty { text-align: center; color: var(--muted); padding: 60px 16px; }
     .empty .big { font-size: 34px; margin-bottom: 8px; }
     .skel { height: 64px; border-radius: 12px; margin: 0 10px 8px; animation: sk 1.2s infinite;
@@ -270,7 +276,7 @@
     const icons = () => { try { window.lucide && lucide.createIcons(); } catch {} };
     const video = $("video"), proxyChk = $("proxy");
     let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
-    let currentRow = null, viewList = [], viewIndex = -1;
+    let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null;
     const deadUrls = new Set(); // canales que han fallado
 
     // ----- Col 1: países -----
@@ -441,9 +447,22 @@
       else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen(); // iOS
     }
     const inFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement;
+    // Muestra la info (banner) unos segundos y luego la oculta
+    function showBanner(ms = 3500) {
+      const st = $("stage");
+      st.classList.add("banner");
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => st.classList.remove("banner"), ms);
+    }
     function onFsChange() {
-      if (!inFullscreen()) {
-        video.controls = false;
+      const st = $("stage");
+      if (inFullscreen()) {
+        video.controls = false;      // sin barra de controles: interfaz limpia de TV
+        st.classList.add("fs");
+        showBanner();                // banner inicial al entrar
+      } else {
+        st.classList.remove("fs", "banner");
+        if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
         // Al salir (botón Atrás), volver a la lista y enfocar el canal actual
         if (currentRow) { currentRow.focus(); currentRow.scrollIntoView({ block: "center" }); }
       }
@@ -551,10 +570,12 @@
     function focusFirst(col) { const it = itemsIn(col); if (it.length) it[0].focus(); }
     document.addEventListener("keydown", (e) => {
       const k = e.key;
-      // En pantalla completa: ← → cambian de canal; Atrás/Esc sale (nativo)
+      // En pantalla completa: ← → cambian de canal, OK pausa/reanuda; Atrás/Esc sale
       if (inFullscreen()) {
         if (k === "ArrowRight") { e.preventDefault(); playRelative(1); }
         else if (k === "ArrowLeft") { e.preventDefault(); playRelative(-1); }
+        else if (k === "Enter") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+        showBanner(); // cualquier tecla revela la info unos segundos
         return;
       }
       if (!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Enter"].includes(k)) return;
