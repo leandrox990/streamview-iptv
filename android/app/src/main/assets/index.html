@@ -275,6 +275,9 @@
     const $ = (id) => document.getElementById(id);
     const icons = () => { try { window.lucide && lucide.createIcons(); } catch {} };
     const video = $("video"), proxyChk = $("proxy");
+    // Puente con la app Android: si existe, la reproducción a pantalla completa
+    // la hace ExoPlayer nativo (mucho más eficiente en TV/Firestick).
+    const NATIVE = window.AndroidTV || null;
     let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
     let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null;
     const deadUrls = new Set(); // canales que han fallado
@@ -403,22 +406,37 @@
     }
     const hideError = () => $("heroError").classList.remove("show");
 
-    function play(ch, rowEl, index) {
-      currentRawUrl = ch.url;
-      if (typeof index === "number") viewIndex = index;
-      hideError();
-      $("emptyPv").style.display = "none"; video.style.display = "block";
-      showLoading(true);
-      if (loadTimer) clearTimeout(loadTimer);
-      loadTimer = setTimeout(() => { if (video.paused || video.readyState < 3) showError({ details: "manifestLoadTimeOut" }); }, 15000);
+    function setNowInfo(ch) {
       $("pvTitle").textContent = ch.name; $("pvCat").textContent = ch.group || "EN VIVO";
       const bs = $("pvBadges"); bs.innerHTML = '<span class="badge live">EN DIRECTO</span>';
       if (ch.quality) bs.insertAdjacentHTML("beforeend", `<span class="badge">${ch.quality.toUpperCase()}</span>`);
       if (ch.group) bs.insertAdjacentHTML("beforeend", `<span class="badge">${ch.group}</span>`);
+    }
+    function showPoster(ch) {
+      const logo = ch.logo
+        ? `<img src="${ch.logo}" style="max-width:240px;max-height:130px;object-fit:contain;margin-bottom:18px">`
+        : `<i data-lucide="monitor-play"></i>`;
+      $("emptyPv").innerHTML = `<div>${logo}<div>Pulsa <b>OK</b> para verlo a pantalla completa</div></div>`;
+      $("emptyPv").style.display = "grid"; icons();
+    }
+
+    function play(ch, rowEl, index) {
+      currentRawUrl = ch.url;
+      if (typeof index === "number") viewIndex = index;
+      hideError();
+      setNowInfo(ch);
       document.querySelectorAll(".chan.playing").forEach((x)=>x.classList.remove("playing"));
       currentRow = rowEl || null;
       if (rowEl) rowEl.classList.add("playing");
 
+      // En la app Android: no reproducimos preview con hls; mostramos póster y
+      // la reproducción real la hace ExoPlayer al pulsar OK.
+      if (NATIVE) { showLoading(false); video.style.display = "none"; showPoster(ch); return; }
+
+      $("emptyPv").style.display = "none"; video.style.display = "block";
+      showLoading(true);
+      if (loadTimer) clearTimeout(loadTimer);
+      loadTimer = setTimeout(() => { if (video.paused || video.readyState < 3) showError({ details: "manifestLoadTimeOut" }); }, 15000);
       const src = resolveUrl(ch.url);
       if (hls) { hls.destroy(); hls = null; }
       if (window.Hls && Hls.isSupported()) {
@@ -440,12 +458,28 @@
     // Pantalla completa
     function goFullscreen() {
       if (!currentRawUrl) return;
+      // App Android: delegar en ExoPlayer nativo
+      if (NATIVE) { NATIVE.fsPlay(currentRawUrl, $("pvTitle").textContent || ""); return; }
       const el = $("stage");
       video.controls = true;
       if (el.requestFullscreen) el.requestFullscreen();
       else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
       else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen(); // iOS
     }
+
+    // Llamadas desde la app nativa (ExoPlayer)
+    window.tvNav = function (dir) {
+      if (!viewList.length) return;
+      let i = viewIndex + dir;
+      i = Math.max(0, Math.min(viewList.length - 1, i));
+      if (i === viewIndex) return;
+      const rows = document.querySelectorAll("#chanList .chan");
+      play(viewList[i], rows[i], i);
+      if (NATIVE) NATIVE.fsPlay(currentRawUrl, viewList[i].name);
+    };
+    window.tvExit = function () {
+      if (currentRow) { currentRow.focus(); currentRow.scrollIntoView({ block: "center" }); }
+    };
     const inFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement;
     // Muestra la info (banner) unos segundos y luego la oculta
     function showBanner(ms = 3500) {
