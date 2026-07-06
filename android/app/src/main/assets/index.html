@@ -216,7 +216,7 @@
     @keyframes float { 0%,100%{ transform: translate(0,0) } 50%{ transform: translate(36px,-36px) } }
 
     .auth-card { position: relative; z-index: 2; display: grid; grid-template-columns: 1.05fr .95fr;
-      width: min(800px, 94vw); border-radius: 26px; overflow: hidden;
+      width: min(860px, 90vw); border-radius: 26px; overflow: hidden;
       border: 1px solid rgba(255,255,255,.12); box-shadow: 0 54px 120px -30px rgba(0,0,0,.82); }
     .auth-hero { position: relative; padding: 48px 40px; overflow: hidden; display: flex; flex-direction: column; justify-content: center;
       background: linear-gradient(155deg, #6a4cff 0%, #ff4d8d 82%, #ff8a3d 135%); }
@@ -896,16 +896,16 @@
     const hideGate = () => { $("authGate").classList.remove("show"); document.body.classList.remove("locked"); };
 
     async function initAuth() {
-      checkVersion();
       if (!AUTH_ON) { hideGate(); return; }  // login desactivado (sin credenciales)
+      showGate();          // ← el login se muestra de inmediato, antes de validar (sin flash de la app)
+      checkVersion();
       const saved = (() => { try { return JSON.parse(localStorage.getItem("sv_session") || "null"); } catch { return null; } })();
       if (saved && saved.username && saved.session) {
         try {
           const { data } = await client().rpc("sv_validate", { p_user: saved.username, p_session: saved.session });
-          if (data && data.ok) { authUser = saved.username; authSession = saved.session; hideGate(); startValidate(); return; }
+          if (data && data.ok) { authUser = saved.username; authSession = saved.session; hideGate(); startValidate(); }
         } catch {}
       }
-      showGate();
     }
 
     async function doLogin() {
