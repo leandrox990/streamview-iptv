@@ -486,6 +486,11 @@
       play(viewList[i], rows[i], i);
     }
 
+    // Es en vivo: si el vídeo se pausa por cualquier motivo, reanudar automáticamente
+    video.addEventListener("pause", () => {
+      if (currentRawUrl && video.src) video.play().catch(()=>{});
+    });
+
     // ----- Listas -----
     async function loadPlaylist(listUrl, title, preGroup) {
       if (!listUrl) return;
@@ -574,11 +579,10 @@
     function focusFirst(col) { const it = itemsIn(col); if (it.length) it[0].focus(); }
     document.addEventListener("keydown", (e) => {
       const k = e.key;
-      // En pantalla completa: ← → cambian de canal, OK pausa/reanuda; Atrás/Esc sale
+      // En pantalla completa: ← → cambian de canal; Atrás/Esc sale (es en vivo, sin pausa)
       if (inFullscreen()) {
         if (k === "ArrowRight") { e.preventDefault(); playRelative(1); }
         else if (k === "ArrowLeft") { e.preventDefault(); playRelative(-1); }
-        else if (k === "Enter") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
         showBanner(); // cualquier tecla revela la info unos segundos
         return;
       }
