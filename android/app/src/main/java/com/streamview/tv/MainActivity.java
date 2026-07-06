@@ -9,6 +9,7 @@ import android.os.Looper;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -72,6 +73,7 @@ public class MainActivity extends Activity {
         s.setAllowUniversalAccessFromFileURLs(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
+        s.setTextZoom(100); // ignora la escala de fuente del sistema (evita texto gigante)
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new NativeBridge(), "AndroidTV");
 
@@ -82,10 +84,9 @@ public class MainActivity extends Activity {
         playerContainer.setFocusable(false);
         playerContainer.setFocusableInTouchMode(false);
 
-        playerView = new PlayerView(this);
-        playerView.setUseController(false);
+        // PlayerView con TextureView (se superpone bien en sub-región sobre el WebView)
+        playerView = (PlayerView) LayoutInflater.from(this).inflate(R.layout.player, playerContainer, false);
         playerView.setFocusable(false);
-        playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
         playerContainer.addView(playerView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
