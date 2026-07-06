@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=1280, initial-scale=1.0" />
   <title>StreamView · IPTV</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.454.0/dist/umd/lucide.min.js"></script>
@@ -43,10 +43,12 @@
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; }
 
     .app { display: grid; grid-template-columns: 230px 320px 1fr; height: 100vh; }
+    /* En TV (Fire TV): margen de seguridad para el overscan (bordes cortados) */
+    body.tv .app { padding: 2.8vh 2.6vw; }
     .panel { overflow-y: auto; border-right: 1px solid var(--border); }
     .panel:last-child { border-right: none; }
-    .phead { position: sticky; top: 0; z-index: 3; padding: 18px 16px 12px;
-      background: linear-gradient(180deg, var(--bg) 70%, transparent); }
+    .phead { position: sticky; top: 0; z-index: 3; padding: 16px 16px 12px;
+      background: var(--bg); box-shadow: 0 8px 14px -8px rgba(0,0,0,.7); }
     .phead h3 { margin: 0; font-size: 15px; font-weight: 700; }
     .phead .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 
@@ -298,6 +300,7 @@
     // Puente con la app Android: si existe, la reproducción a pantalla completa
     // la hace ExoPlayer nativo (mucho más eficiente en TV/Firestick).
     const NATIVE = window.AndroidTV || null;
+    if (NATIVE) document.body.classList.add("tv");
     let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
     let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null, previewOn = false;
     // Rect del panel de preview en píxeles del dispositivo (para ExoPlayer nativo)
