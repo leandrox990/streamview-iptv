@@ -278,18 +278,19 @@
 
   <script>
     const R = "https://raw.githubusercontent.com/Romaxa55/world_ip_tv/master/output/";
+    // Todos los países (sin España), ordenados alfabéticamente
+    const COUNTRIES = [
+      ["México","mx",104],["Argentina","ar",116],["Uruguay","uy",11],
+      ["Paraguay","py",53],["Colombia","co",95],["Chile","cl",198],["Perú","pe",148],
+      ["Bolivia","bo",66],["Ecuador","ec",64],["Venezuela","ve",57],["Costa Rica","cr",44],
+      ["Panamá","pa",16],["Rep. Dominicana","do",203],["Guatemala","gt",26],["Honduras","hn",45],
+      ["El Salvador","sv",18],["Nicaragua","ni",5],["Puerto Rico","pr",24],
+      ["Estados Unidos","us",1032],["Brasil","br",119],["Portugal","pt",35],["Reino Unido","uk",125],
+      ["Francia","fr",93],["Italia","it",171],["Alemania","de",138],["Canadá","ca",114],
+    ].sort((a, b) => a[0].localeCompare(b[0], "es"));
     const NAV = [
-      { label: "Latinoamérica y España", items: [
-        ["España","es",148],["México","mx",104],["Argentina","ar",116],["Uruguay","uy",11],
-        ["Paraguay","py",53],["Colombia","co",95],["Chile","cl",198],["Perú","pe",148],
-        ["Bolivia","bo",66],["Ecuador","ec",64],["Venezuela","ve",57],["Costa Rica","cr",44],
-        ["Panamá","pa",16],["Rep. Dominicana","do",203],["Guatemala","gt",26],["Honduras","hn",45],
-        ["El Salvador","sv",18],["Nicaragua","ni",5],["Puerto Rico","pr",24],
-      ]},
-      { label: "Mundo", items: [
-        ["Estados Unidos","us",1032],["Brasil","br",119],["Portugal","pt",35],["Reino Unido","uk",125],
-        ["Francia","fr",93],["Italia","it",171],["Alemania","de",138],["Canadá","ca",114],["Internacionales","int",460],
-      ]},
+      { label: "Países", items: COUNTRIES },
+      { label: "Global", items: [ ["Internacionales","int",460] ] },
     ];
     const $ = (id) => document.getElementById(id);
     const icons = () => { try { window.lucide && lucide.createIcons(); } catch {} };
@@ -655,7 +656,6 @@
       if (globalIndex) return;
       const codes = [];
       NAV.forEach((sec) => sec.items.forEach(([name, c]) => codes.push([c, name])));
-      codes.push(["int", "Internacional"]);
       const parts = await Promise.all(codes.map(([c, cname]) =>
         fetch(R + c + ".m3u")
           .then((r) => r.text()).then((t) => parseM3U(t).map((ch) => { ch.country = cname; return ch; })).catch(() => [])
