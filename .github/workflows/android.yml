@@ -27,6 +27,16 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
+      - name: Versión automática (según nº de compilación)
+        working-directory: android
+        run: |
+          VER="1.0.${GITHUB_RUN_NUMBER}"
+          echo "APP_VER=$VER" >> $GITHUB_ENV
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${VER}\"/" app/build.gradle
+          sed -i "s/versionCode [0-9]\+/versionCode ${GITHUB_RUN_NUMBER}/" app/build.gradle
+          sed -i "s/const APP_VERSION   = \"[^\"]*\"/const APP_VERSION   = \"${VER}\"/" app/src/main/assets/index.html
+          echo "Compilando versión $VER"
+
       - name: Compilar APK (debug)
         working-directory: android
         run: |
@@ -36,5 +46,5 @@ jobs:
       - name: Publicar el APK como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: StreamView-APK
+          name: StreamView-APK-v${{ env.APP_VER }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
