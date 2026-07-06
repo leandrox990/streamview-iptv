@@ -6,6 +6,7 @@
   <title>StreamView · IPTV</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -202,9 +203,45 @@
     .ev p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
     .modal-note { margin-top: 18px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
     .modal-close { margin-top: 20px; width: 100%; }
+
+    /* Login */
+    .auth { position: fixed; inset: 0; z-index: 100; display: none; place-items: center;
+      background: radial-gradient(1000px 600px at 50% 0%, rgba(124,92,255,.2), transparent 60%), #07070d; }
+    .auth.show { display: grid; }
+    .auth-card { width: min(380px, 92vw); text-align: center; padding: 34px 30px; }
+    .auth-logo { width: 60px; height: 60px; border-radius: 16px; background: var(--grad); margin: 0 auto 16px;
+      display: grid; place-items: center; font-weight: 800; font-size: 26px; color: #fff; box-shadow: 0 12px 34px rgba(124,92,255,.5); }
+    .auth-card h2 { margin: 0 0 4px; font-size: 24px; font-weight: 800; }
+    .auth-card .lead { color: var(--muted); font-size: 13px; margin: 0 0 22px; }
+    .auth-card input { width: 100%; padding: 13px 15px; margin-bottom: 12px; font-size: 15px;
+      background: #12121f; border: 1px solid var(--border); border-radius: 12px; color: var(--text); }
+    .auth-card input:focus { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+    .auth-card .authbtn { width: 100%; padding: 13px; border: none; border-radius: 12px; cursor: pointer;
+      background: var(--grad); color: #fff; font-weight: 700; font-size: 15px; }
+    .auth-err { color: #ff8a95; font-size: 13px; margin-top: 12px; min-height: 18px; }
+    body.locked .app { filter: blur(4px); pointer-events: none; }
+
+    /* Indicador de versión */
+    .verline { margin: 10px 8px 2px; font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .verline .dot { width: 7px; height: 7px; border-radius: 50%; background: #3a3f4c; }
+    .verline.upd { color: #ffcf4d; }
+    .verline.upd .dot { background: #ffcf4d; box-shadow: 0 0 8px #ffcf4d; }
   </style>
 </head>
 <body>
+  <!-- Login -->
+  <div class="auth" id="authGate">
+    <div class="auth-card">
+      <div class="auth-logo">S</div>
+      <h2>StreamView</h2>
+      <p class="lead" id="authLead">Inicia sesión para continuar</p>
+      <input id="authUser" placeholder="Usuario" autocomplete="username" />
+      <input id="authPass" type="password" placeholder="Contraseña" autocomplete="current-password" />
+      <button class="authbtn" id="authBtn">Entrar</button>
+      <div class="auth-err" id="authErr"></div>
+    </div>
+  </div>
+
   <div class="app">
     <!-- Col 1: países -->
     <div class="panel" id="col-countries">
@@ -218,6 +255,7 @@
           <label class="switch"><input type="checkbox" id="proxy" checked /><span class="slider"></span></label>
           Proxy (CORS)
         </div>
+        <div class="verline" id="verLine"><span class="dot"></span><span id="verText">v1.0.0</span></div>
       </div>
     </div>
 
@@ -305,6 +343,15 @@
     // la hace ExoPlayer nativo (mucho más eficiente en TV/Firestick).
     const NATIVE = window.AndroidTV || null;
     if (NATIVE) document.body.classList.add("tv");
+
+    // ===================== CONFIG LOGIN (Supabase) =====================
+    // Pega aquí la URL y la anon key de tu proyecto Supabase para ACTIVAR el login.
+    // Si se dejan vacías, la app funciona sin login (abierta).
+    const SUPABASE_URL  = "";
+    const SUPABASE_ANON = "";
+    const APP_VERSION   = "1.0.0";
+    const AUTH_ON = /^https:\/\//.test(SUPABASE_URL) && SUPABASE_ANON.length > 20;
+    // ==================================================================
     let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
     let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null, previewOn = false;
     // Rect del panel de preview en píxeles del dispositivo (para ExoPlayer nativo)
@@ -799,6 +846,78 @@
 
     // Renderizar todos los iconos Lucide (estáticos + nav generado)
     icons();
+
+    // ===================== LOGIN + VERSIÓN =====================
+    let sb = null, authUser = null, authSession = null, validateTimer = null;
+    function devId() { let d = localStorage.getItem("sv_dev"); if (!d) { d = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()); localStorage.setItem("sv_dev", d); } return d; }
+    function client() { if (!sb) sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON); return sb; }
+    const showGate = (msg) => { $("authGate").classList.add("show"); document.body.classList.add("locked"); $("authErr").textContent = msg || ""; if (msg) $("authLead").textContent = "Vuelve a iniciar sesión"; };
+    const hideGate = () => { $("authGate").classList.remove("show"); document.body.classList.remove("locked"); };
+
+    async function initAuth() {
+      checkVersion();
+      if (!AUTH_ON) { hideGate(); return; }  // login desactivado (sin credenciales)
+      const saved = (() => { try { return JSON.parse(localStorage.getItem("sv_session") || "null"); } catch { return null; } })();
+      if (saved && saved.username && saved.session) {
+        try {
+          const { data } = await client().rpc("sv_validate", { p_user: saved.username, p_session: saved.session });
+          if (data && data.ok) { authUser = saved.username; authSession = saved.session; hideGate(); startValidate(); return; }
+        } catch {}
+      }
+      showGate();
+    }
+
+    async function doLogin() {
+      const u = $("authUser").value.trim(), p = $("authPass").value;
+      if (!u || !p) { $("authErr").textContent = "Ingresa usuario y contraseña"; return; }
+      $("authBtn").textContent = "Entrando…"; $("authBtn").disabled = true;
+      try {
+        const dev = (navigator.platform || "") + " · " + devId().slice(0, 8);
+        const { data, error } = await client().rpc("sv_login", { p_user: u, p_pass: p, p_device: dev });
+        if (error) { $("authErr").textContent = "Error de conexión"; }
+        else if (!data.ok) { $("authErr").textContent = data.error || "No se pudo entrar"; }
+        else {
+          authUser = data.username; authSession = data.session;
+          localStorage.setItem("sv_session", JSON.stringify({ username: authUser, session: authSession }));
+          $("authErr").textContent = ""; $("authPass").value = ""; hideGate(); startValidate();
+        }
+      } catch { $("authErr").textContent = "Error de conexión"; }
+      $("authBtn").textContent = "Entrar"; $("authBtn").disabled = false;
+    }
+    $("authBtn").onclick = doLogin;
+    $("authPass").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+
+    function startValidate() {
+      if (validateTimer) clearInterval(validateTimer);
+      validateTimer = setInterval(async () => {
+        try {
+          const { data } = await client().rpc("sv_validate", { p_user: authUser, p_session: authSession });
+          if (data && !data.ok) {
+            clearInterval(validateTimer); localStorage.removeItem("sv_session");
+            if (NATIVE && NATIVE.hide) { try { NATIVE.hide(); } catch {} }
+            if (hls) { try { hls.destroy(); } catch {} hls = null; }
+            const m = data.reason === "kicked" ? "Se inició sesión en otro dispositivo." :
+                      data.reason === "expired" ? "Tu acceso ha vencido." :
+                      data.reason === "disabled" ? "Cuenta desactivada." : "Sesión finalizada.";
+            showGate(m);
+          }
+        } catch {}
+      }, 25000);
+    }
+
+    async function checkVersion() {
+      if (!AUTH_ON) return;
+      try {
+        const { data } = await client().rpc("sv_config");
+        if (data && data.latest_version && data.latest_version !== APP_VERSION) {
+          const vl = $("verLine"); vl.classList.add("upd");
+          $("verText").textContent = "v" + APP_VERSION + " · actualización: v" + data.latest_version;
+        }
+      } catch {}
+    }
+
+    $("verText").textContent = "v" + APP_VERSION;
+    initAuth();
 
     // ----- Live reload (dev) -----
     try { const es = new EventSource("/livereload"); let f=true;

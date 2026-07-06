@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>StreamView · Administración</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#0a0a12;--sf:rgba(255,255,255,.05);--sf2:rgba(255,255,255,.09);--bd:rgba(255,255,255,.1);
+    --tx:#f2f3f7;--mut:#8b90a3;--acc:#7c5cff;--acc2:#ff4d8d;--ok:#2ee6a6;--err:#ff5a6a;--grad:linear-gradient(135deg,#7c5cff,#ff4d8d)}
+  *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--tx);
+    background:radial-gradient(1000px 500px at 90% -10%,rgba(124,92,255,.18),transparent 60%),var(--bg);min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 20px 60px}
+  h1{font-size:22px;margin:0 0 2px;display:flex;align-items:center;gap:10px}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--grad);display:grid;place-items:center;font-weight:800}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 22px}
+  .card{background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:18px;margin-bottom:18px}
+  .card h2{font-size:15px;margin:0 0 14px}
+  label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+  input,select{width:100%;padding:10px 12px;background:#0d0f15;border:1px solid var(--bd);border-radius:9px;color:var(--tx);font-size:13px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+  button{border:none;cursor:pointer;font-weight:600;font-size:13px;padding:10px 14px;border-radius:9px;color:#fff;background:var(--grad)}
+  button.g{background:var(--sf2)}button.d{background:rgba(255,90,106,.2);color:#ffb3ba}button:hover{filter:brightness(1.08)}
+  button.sm{padding:6px 10px;font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--bd);vertical-align:middle}
+  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .pill{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--sf2);color:var(--mut)}
+  .pill.on{background:rgba(46,230,166,.16);color:#7ff0cf}.pill.off{background:rgba(255,90,106,.16);color:#ffb3ba}
+  .pill.live{background:rgba(124,92,255,.2);color:#c9bcff}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
+  .msg{font-size:13px;padding:10px 12px;border-radius:9px;margin-top:10px;display:none}
+  .msg.show{display:block}.msg.ok{background:rgba(46,230,166,.14);color:#7ff0cf}.msg.err{background:rgba(255,90,106,.14);color:#ffb3ba}
+  .muted{color:var(--mut);font-size:12px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="logo">S</span> StreamView · Administración</h1>
+  <p class="sub">Gestiona quién puede usar tu app. Un usuario = un dispositivo.</p>
+
+  <!-- Conexión -->
+  <div class="card" id="connCard">
+    <h2>Conexión</h2>
+    <label>URL del proyecto Supabase</label>
+    <input id="url" placeholder="https://xxxxx.supabase.co" />
+    <label>Anon key (clave pública)</label>
+    <input id="anon" placeholder="eyJhbGciOi..." />
+    <label>Token de administrador</label>
+    <input id="token" type="password" placeholder="tu token admin" />
+    <div class="row" style="margin-top:14px">
+      <button id="connBtn">Entrar</button>
+      <button class="g" id="saveBtn">Guardar credenciales</button>
+    </div>
+    <div class="msg" id="connMsg"></div>
+  </div>
+
+  <div id="panel" class="hide">
+    <!-- Crear usuario -->
+    <div class="card">
+      <h2>Crear usuario</h2>
+      <div class="row">
+        <div><label>Usuario</label><input id="nUser" placeholder="juan" /></div>
+        <div><label>Contraseña</label><input id="nPass" placeholder="clave" /></div>
+        <div><label>Plan</label><input id="nPlan" placeholder="basico" value="basico" /></div>
+        <div><label>Vence (opcional)</label><input id="nExp" type="date" /></div>
+      </div>
+      <div style="margin-top:12px"><button id="createBtn">Crear usuario</button></div>
+      <div class="msg" id="createMsg"></div>
+    </div>
+
+    <!-- Usuarios -->
+    <div class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:center">Usuarios
+        <button class="g sm" id="reloadBtn">Actualizar</button></h2>
+      <div style="overflow-x:auto">
+        <table id="tbl"><thead><tr>
+          <th>Usuario</th><th>Estado</th><th>Plan</th><th>Vence</th><th>Dispositivo</th><th>Acciones</th>
+        </tr></thead><tbody id="tbody"></tbody></table>
+      </div>
+      <div class="msg" id="usersMsg"></div>
+    </div>
+
+    <!-- Versión -->
+    <div class="card">
+      <h2>Versión de la app</h2>
+      <div class="row">
+        <div><label>Última versión</label><input id="vLatest" placeholder="1.0.0" /></div>
+        <div><label>Versión mínima obligatoria (opcional)</label><input id="vMin" placeholder="1.0.0" /></div>
+      </div>
+      <label>Mensaje para los usuarios (opcional)</label>
+      <input id="vMsg" placeholder="Ej: Nueva versión disponible" />
+      <div style="margin-top:12px"><button id="verBtn">Guardar versión</button></div>
+      <div class="msg" id="verMsg"></div>
+    </div>
+
+    <!-- Seguridad -->
+    <div class="card">
+      <h2>Cambiar token de administrador</h2>
+      <div class="row">
+        <div><label>Nuevo token</label><input id="newTok" type="password" placeholder="nuevo token" /></div>
+      </div>
+      <div style="margin-top:12px"><button class="g" id="tokBtn">Cambiar token</button></div>
+      <div class="msg" id="tokMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let supa = null, TOKEN = "";
+  const LS = "sv_admin_cfg";
+
+  // Restaurar credenciales
+  try { const c = JSON.parse(localStorage.getItem(LS) || "{}");
+    if (c.url) $("url").value = c.url; if (c.anon) $("anon").value = c.anon; if (c.token) $("token").value = c.token;
+  } catch {}
+
+  function say(el, text, ok) { el.textContent = text; el.className = "msg show " + (ok ? "ok" : "err"); }
+
+  async function admin(action, payload) {
+    const { data, error } = await supa.rpc("sv_admin", { p_token: TOKEN, p_action: action, p_payload: payload || {} });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  }
+
+  $("saveBtn").onclick = () => {
+    localStorage.setItem(LS, JSON.stringify({ url: $("url").value.trim(), anon: $("anon").value.trim(), token: $("token").value }));
+    say($("connMsg"), "Credenciales guardadas en este navegador.", true);
+  };
+
+  $("connBtn").onclick = async () => {
+    const url = $("url").value.trim(), anon = $("anon").value.trim(); TOKEN = $("token").value;
+    if (!url || !anon || !TOKEN) return say($("connMsg"), "Completa URL, anon key y token.", false);
+    supa = supabase.createClient(url, anon);
+    const r = await admin("list_users");
+    if (!r.ok) return say($("connMsg"), r.error || "No se pudo entrar", false);
+    $("connMsg").className = "msg";
+    $("panel").classList.remove("hide"); $("connCard").classList.add("hide");
+    renderUsers(r.users); loadVersion();
+  };
+
+  $("reloadBtn").onclick = async () => { const r = await admin("list_users"); if (r.ok) renderUsers(r.users); };
+
+  function fmtDate(s){ if(!s) return "—"; const d=new Date(s); return d.toLocaleDateString(); }
+
+  function renderUsers(users) {
+    const tb = $("tbody"); tb.innerHTML = "";
+    if (!users.length) { tb.innerHTML = '<tr><td colspan="6" class="muted">Sin usuarios todavía.</td></tr>'; return; }
+    users.forEach((u) => {
+      const tr = document.createElement("tr");
+      const estado = u.active
+        ? (u.online ? '<span class="pill live">En uso</span>' : '<span class="pill on">Activo</span>')
+        : '<span class="pill off">Desactivado</span>';
+      tr.innerHTML =
+        `<td><b>${u.username}</b></td>
+         <td>${estado}</td>
+         <td>${u.plan||"—"}</td>
+         <td>${fmtDate(u.expires_at)}</td>
+         <td class="muted">${u.current_device||"—"}</td>
+         <td><div class="actions">
+           <button class="g sm" data-a="toggle">${u.active?"Desactivar":"Activar"}</button>
+           <button class="g sm" data-a="kick">Expulsar</button>
+           <button class="g sm" data-a="pass">Clave</button>
+           <button class="g sm" data-a="exp">Vence</button>
+           <button class="d sm" data-a="del">Eliminar</button>
+         </div></td>`;
+      tr.querySelectorAll("button").forEach((b) => b.onclick = () => userAction(b.dataset.a, u));
+      tb.appendChild(tr);
+    });
+  }
+
+  async function userAction(a, u) {
+    let r;
+    if (a === "toggle") r = await admin("set_active", { id: u.id, active: !u.active });
+    else if (a === "kick") r = await admin("kick", { id: u.id });
+    else if (a === "del") { if (!confirm(`¿Eliminar a ${u.username}?`)) return; r = await admin("delete_user", { id: u.id }); }
+    else if (a === "pass") { const p = prompt(`Nueva contraseña para ${u.username}:`); if (!p) return; r = await admin("set_password", { id: u.id, password: p }); }
+    else if (a === "exp") { const d = prompt("Fecha de vencimiento (YYYY-MM-DD) o vacío para quitar:", ""); if (d === null) return; r = await admin("set_expiry", { id: u.id, expires_at: d ? d + "T23:59:59Z" : "" }); }
+    if (r && r.ok) $("reloadBtn").onclick(); else say($("usersMsg"), (r && r.error) || "Error", false);
+  }
+
+  $("createBtn").onclick = async () => {
+    const username = $("nUser").value.trim(), password = $("nPass").value;
+    if (!username || !password) return say($("createMsg"), "Usuario y contraseña son obligatorios.", false);
+    const exp = $("nExp").value ? $("nExp").value + "T23:59:59Z" : "";
+    const r = await admin("create_user", { username, password, plan: $("nPlan").value.trim(), expires_at: exp });
+    if (r.ok) { say($("createMsg"), "Usuario creado.", true); $("nUser").value=""; $("nPass").value=""; $("nExp").value=""; $("reloadBtn").onclick(); }
+    else say($("createMsg"), r.error || "Error", false);
+  };
+
+  async function loadVersion() {
+    const { data } = await supa.rpc("sv_config");
+    if (data) { $("vLatest").value = data.latest_version || ""; $("vMin").value = data.min_version || ""; $("vMsg").value = data.message || ""; }
+  }
+  $("verBtn").onclick = async () => {
+    const r = await admin("set_version", { latest_version: $("vLatest").value.trim(), min_version: $("vMin").value.trim(), message: $("vMsg").value.trim() });
+    say($("verMsg"), r.ok ? "Versión guardada." : (r.error || "Error"), r.ok);
+  };
+  $("tokBtn").onclick = async () => {
+    const nt = $("newTok").value; if (!nt) return;
+    const r = await admin("set_admin_token", { new_token: nt });
+    if (r.ok) { TOKEN = nt; $("token").value = nt; $("newTok").value=""; say($("tokMsg"), "Token cambiado.", true); }
+    else say($("tokMsg"), r.error || "Error", false);
+  };
+</script>
+</body>
+</html>
