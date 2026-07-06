@@ -280,20 +280,20 @@
 
   <script>
     const R = "https://raw.githubusercontent.com/Romaxa55/world_ip_tv/master/output/";
-    // Todos los países (sin España), ordenados alfabéticamente
-    const COUNTRIES = [
-      ["México","mx",104],["Argentina","ar",116],["Uruguay","uy",11],
-      ["Paraguay","py",53],["Colombia","co",95],["Chile","cl",198],["Perú","pe",148],
-      ["Bolivia","bo",66],["Ecuador","ec",64],["Venezuela","ve",57],["Costa Rica","cr",44],
-      ["Panamá","pa",16],["Rep. Dominicana","do",203],["Guatemala","gt",26],["Honduras","hn",45],
-      ["El Salvador","sv",18],["Nicaragua","ni",5],["Puerto Rico","pr",24],
-      ["Estados Unidos","us",1032],["Brasil","br",119],["Portugal","pt",35],["Reino Unido","uk",125],
-      ["Francia","fr",93],["Italia","it",171],["Alemania","de",138],["Canadá","ca",114],
+    // Países latinos (menú principal), ordenados alfabéticamente
+    const LATINO = [
+      ["Argentina","ar",116],["Bolivia","bo",66],["Chile","cl",198],["Colombia","co",95],
+      ["Costa Rica","cr",44],["Ecuador","ec",64],["El Salvador","sv",18],["Guatemala","gt",26],
+      ["Honduras","hn",45],["México","mx",104],["Nicaragua","ni",5],["Panamá","pa",16],
+      ["Paraguay","py",53],["Perú","pe",148],["Puerto Rico","pr",24],["Rep. Dominicana","do",203],
+      ["Uruguay","uy",11],["Venezuela","ve",57],
     ].sort((a, b) => a[0].localeCompare(b[0], "es"));
-    const NAV = [
-      { label: "Países", items: COUNTRIES },
-      { label: "Global", items: [ ["Internacionales","int",460] ] },
+    // Resto de países → sección Internacionales (agrupados por país)
+    const INTL_COUNTRIES = [
+      ["Alemania","de"],["Brasil","br"],["Canadá","ca"],["Estados Unidos","us"],
+      ["Francia","fr"],["Italia","it"],["Portugal","pt"],["Reino Unido","uk"],
     ];
+    const NAV = [ { label: "Países latinos", items: LATINO } ];
     const $ = (id) => document.getElementById(id);
     const icons = () => { try { window.lucide && lucide.createIcons(); } catch {} };
     const video = $("video"), proxyChk = $("proxy");
@@ -416,6 +416,37 @@
         navEl.appendChild(b);
       });
     });
+
+    // Sección Internacionales (resto de países, agrupados por país)
+    const intlLbl = document.createElement("div"); intlLbl.className = "side-label";
+    intlLbl.innerHTML = '<i data-lucide="globe"></i>Global'; navEl.appendChild(intlLbl);
+    const intlBtn = document.createElement("button");
+    intlBtn.className = "country focusable"; intlBtn.tabIndex = 0;
+    intlBtn.innerHTML = '<span class="lbl"><i data-lucide="globe"></i>Internacionales</span><span class="cnt">MUNDO</span>';
+    intlBtn.onclick = () => { clearActive(); intlBtn.classList.add("active"); loadInternational(); };
+    navEl.appendChild(intlBtn);
+
+    async function loadInternational() {
+      globalMode = false; updateGlobalBtn();
+      $("chTitle").textContent = "Internacionales";
+      $("chSub").textContent = "Reuniendo canales…";
+      const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
+      for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
+      const parts = await Promise.all(INTL_COUNTRIES.map(([name, c]) =>
+        fetch(R + c + ".m3u")
+          .then((r) => r.text())
+          .then((t) => parseM3U(t).map((ch) => { ch.group = name; ch.country = name; return ch; }))
+          .catch(() => [])
+      ));
+      const seen = new Set(); const merged = [];
+      for (const arr of parts) for (const ch of arr) { if (seen.has(ch.url)) continue; seen.add(ch.url); merged.push(ch); }
+      // ordenar por país y luego por nombre
+      merged.sort((a, b) => (a.group || "").localeCompare(b.group || "", "es") || a.name.localeCompare(b.name, "es"));
+      allChannels = merged; activeGroup = "Todos"; $("search").value = "";
+      $("chips").style.display = "";
+      buildChips(); applyFilters();
+      $("chSub").textContent = merged.length + " canales · agrupados por país";
+    }
 
     // ----- Categorías -----
     const CATS = [
@@ -657,8 +688,8 @@
 
     async function buildGlobalIndex() {
       if (globalIndex) return;
-      const codes = [];
-      NAV.forEach((sec) => sec.items.forEach(([name, c]) => codes.push([c, name])));
+      // buscar en todos los países: latinos + internacionales
+      const codes = LATINO.map(([name, c]) => [c, name]).concat(INTL_COUNTRIES.map(([name, c]) => [c, name]));
       const parts = await Promise.all(codes.map(([c, cname]) =>
         fetch(R + c + ".m3u")
           .then((r) => r.text()).then((t) => parseM3U(t).map((ch) => { ch.country = cname; return ch; })).catch(() => [])
