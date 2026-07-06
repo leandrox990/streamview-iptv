@@ -112,9 +112,11 @@
   let supa = null, TOKEN = "";
   const LS = "sv_admin_cfg";
 
-  // Restaurar credenciales
+  // Restaurar credenciales (ignora una clave secreta guardada por error)
   try { const c = JSON.parse(localStorage.getItem(LS) || "{}");
-    if (c.url) $("url").value = c.url; if (c.anon) $("anon").value = c.anon; if (c.token) $("token").value = c.token;
+    if (c.url) $("url").value = c.url;
+    if (c.anon && !c.anon.startsWith("sb_secret")) $("anon").value = c.anon;
+    if (c.token) $("token").value = c.token;
   } catch {}
 
   function say(el, text, ok) { el.textContent = text; el.className = "msg show " + (ok ? "ok" : "err"); }
@@ -133,6 +135,7 @@
   $("connBtn").onclick = async () => {
     const url = $("url").value.trim(), anon = $("anon").value.trim(); TOKEN = $("token").value;
     if (!url || !anon || !TOKEN) return say($("connMsg"), "Completa URL, anon key y token.", false);
+    if (anon.startsWith("sb_secret")) return say($("connMsg"), "Esa es la clave SECRETA. Usa la publishable (empieza por sb_publishable_).", false);
     supa = supabase.createClient(url, anon);
     const r = await admin("list_users");
     if (!r.ok) return say($("connMsg"), r.error || "No se pudo entrar", false);
