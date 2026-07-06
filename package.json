@@ -1,0 +1,15 @@
+{
+  "name": "m3u8-viewer",
+  "version": "1.0.0",
+  "description": "Pequeña app para visualizar streams m3u8 (HLS) y playlists M3U/IPTV",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js --dev"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT"
+}

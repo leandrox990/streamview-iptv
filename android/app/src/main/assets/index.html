@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamView · IPTV</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.454.0/lucide.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a12; --bg-2: #12121f;
+      --surface: rgba(255,255,255,.04); --surface-2: rgba(255,255,255,.07);
+      --border: rgba(255,255,255,.08);
+      --text: #f2f3f7; --muted: #8b90a3;
+      --accent: #7c5cff; --accent-2: #ff4d8d;
+      --grad: linear-gradient(135deg, #7c5cff, #ff4d8d);
+      --err: #ff5a6a;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    /* iconos (Lucide) */
+    svg.lucide { width: 18px; height: 18px; stroke-width: 2; vertical-align: middle; flex: 0 0 auto; }
+    .country .lbl { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .country .lbl svg { width: 17px; height: 17px; opacity: .9; }
+    .side-label svg { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
+    .btn svg { width: 16px; height: 16px; margin-right: 7px; vertical-align: -3px; }
+    .btn.icon svg { margin-right: 6px; }
+    .ev .ico svg { width: 22px; height: 22px; color: var(--accent-2); }
+    .empty svg, .empty-pv svg { width: 46px; height: 46px; opacity: .7; margin-bottom: 12px; }
+    .empty-pv svg { width: 60px; height: 60px; }
+    .hero-error .ic svg { width: 46px; height: 46px; }
+    body {
+      font-family: "Inter", system-ui, sans-serif; color: var(--text); overflow: hidden;
+      background:
+        radial-gradient(1200px 600px at 85% -10%, rgba(124,92,255,.18), transparent 60%),
+        radial-gradient(1000px 500px at -10% 20%, rgba(255,77,141,.12), transparent 55%),
+        var(--bg);
+    }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; }
+
+    .app { display: grid; grid-template-columns: 230px 320px 1fr; height: 100vh; }
+    .panel { overflow-y: auto; border-right: 1px solid var(--border); }
+    .panel:last-child { border-right: none; }
+    .phead { position: sticky; top: 0; z-index: 3; padding: 18px 16px 12px;
+      background: linear-gradient(180deg, var(--bg) 70%, transparent); }
+    .phead h3 { margin: 0; font-size: 15px; font-weight: 700; }
+    .phead .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    /* focus ring para navegación con mando */
+    :focus { outline: none; }
+    .focusable.focused, .focusable:focus-visible {
+      box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px rgba(124,92,255,.3);
+      border-color: transparent !important;
+    }
+    /* escalado al enfocar, estilo TV */
+    .chan { transition: transform .14s, background .14s, box-shadow .14s; }
+    .chan.focused { transform: scale(1.035); background: var(--surface-2); z-index: 2; position: relative; }
+    .country { transition: transform .12s, background .14s, box-shadow .14s; }
+    .country.focused { transform: scale(1.04); }
+    .chip { transition: transform .12s; }
+    .chip.focused { transform: scale(1.08); }
+
+    /* ----- Col 1: países ----- */
+    .brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px 8px; }
+    .brand .logo { width: 32px; height: 32px; border-radius: 9px; background: var(--grad);
+      display: grid; place-items: center; font-weight: 800; color: #fff; box-shadow: 0 6px 18px rgba(124,92,255,.45); }
+    .brand b { font-size: 16px; font-weight: 800; }
+    .brand span { color: var(--muted); font-size: 10px; display: block; margin-top: -2px; }
+    .side-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 14px 16px 4px; font-weight: 600; }
+    .country { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      width: calc(100% - 16px); margin: 2px 8px; padding: 9px 12px; border-radius: 10px;
+      background: transparent; border: 1px solid transparent; color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; }
+    .country:hover { background: var(--surface); }
+    .country.active { background: var(--surface-2); }
+    .country .cnt { font-size: 10px; color: var(--muted); background: rgba(255,255,255,.06); padding: 2px 7px; border-radius: 20px; }
+    .country.active .cnt { color: #fff; background: var(--grad); }
+    .side-custom { padding: 10px 12px 20px; margin-top: 8px; border-top: 1px solid var(--border); }
+    .field { width: 100%; padding: 9px 11px; border-radius: 9px; font-size: 12px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); }
+    .mini { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .switch { position: relative; width: 34px; height: 20px; flex: 0 0 auto; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; inset: 0; background: rgba(255,255,255,.15); border-radius: 20px; cursor: pointer; transition: .2s; }
+    .slider::before { content:""; position: absolute; height: 14px; width: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .switch input:checked + .slider { background: var(--grad); }
+    .switch input:checked + .slider::before { transform: translateX(14px); }
+
+    /* ----- Col 2: canales ----- */
+    .search { display: flex; align-items: center; gap: 9px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 9px 14px; margin-top: 10px; }
+    .search input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 13px; }
+    .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
+    .chip { cursor: pointer; font-size: 11.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+    .chip.active { color: #fff; background: var(--grad); border-color: transparent; }
+    .chan-list { padding: 6px 10px 30px; }
+    .chan { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; margin-bottom: 2px; }
+    .chan:hover { background: var(--surface); }
+    .chan.playing { background: var(--surface-2); border-color: rgba(124,92,255,.4); }
+    .chan .logo { width: 46px; height: 46px; border-radius: 9px; flex: 0 0 auto; display: grid; place-items: center;
+      background: radial-gradient(120% 120% at 50% 0%, rgba(255,255,255,.08), rgba(0,0,0,.25)); overflow: hidden; position: relative; }
+    .chan .logo > .mono, .chan .logo > img { grid-area: 1 / 1; }
+    .chan .logo .mono { font-size: 15px; font-weight: 800; color: rgba(255,255,255,.85); }
+    .chan .logo img { max-width: 82%; max-height: 74%; object-fit: contain; }
+    .chan .info { min-width: 0; flex: 1; }
+    .chan .info b { font-size: 13.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chan .info small { color: var(--muted); font-size: 11px; }
+    .chan .q { font-size: 10px; font-weight: 700; color: var(--muted); background: rgba(255,255,255,.06); padding: 3px 7px; border-radius: 6px; flex: 0 0 auto; }
+    .chan.dead { opacity: .45; }
+    .chan.dead .info b { text-decoration: line-through; text-decoration-color: rgba(255,255,255,.25); }
+    .chan .dead-tag { color: #ffb3ba; background: rgba(255,90,106,.18); }
+
+    /* ----- Col 3: HERO cinematográfico ----- */
+    #col-preview { overflow: hidden; }
+    .hero { position: relative; height: 100vh; width: 100%; background: #000; cursor: pointer; overflow: hidden; }
+    .hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+    .hero .empty-pv { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 15px; text-align: center; padding: 40px;
+      background: radial-gradient(80% 60% at 50% 40%, rgba(124,92,255,.15), transparent 70%); }
+    .hero .empty-pv .big { font-size: 60px; display: block; margin-bottom: 14px; opacity: .8; }
+    /* overlay de error, discreto y profesional */
+    .hero-error { position: absolute; inset: 0; z-index: 4; display: none; place-items: center; text-align: center; padding: 40px;
+      background: radial-gradient(70% 60% at 50% 45%, rgba(20,20,32,.9), rgba(6,6,12,.97)); }
+    .hero-error.show { display: grid; }
+    .hero-error .ic { font-size: 46px; margin-bottom: 16px; opacity: .9; }
+    .hero-error h4 { margin: 0 0 6px; font-size: 20px; font-weight: 700; }
+    .hero-error p { margin: 0 0 20px; color: var(--muted); font-size: 14px; max-width: 340px; line-height: 1.5; }
+    .hero-loading { position: absolute; inset: 0; z-index: 3; display: none; place-items: center; }
+    .hero-loading.show { display: grid; }
+    .spinner { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.15); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* degradado inferior para legibilidad */
+    .scrim { position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(0deg, rgba(6,6,12,.96) 0%, rgba(6,6,12,.75) 22%, rgba(6,6,12,.1) 48%, transparent 62%); }
+    .hero-info { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 48px 44px; z-index: 2; }
+    .pv-cat { color: var(--accent-2); font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .pv-title { font-size: 40px; font-weight: 800; line-height: 1.08; margin: 6px 0 0; max-width: 80%; text-shadow: 0 4px 24px rgba(0,0,0,.6); }
+    .badges { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 14px; }
+    .badge { font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; background: rgba(255,255,255,.12); backdrop-filter: blur(8px); color: #e7e8ee; }
+    .badge.live { color: #fff; background: rgba(255,90,106,.9); display: flex; align-items: center; gap: 7px; }
+    .badge.live::before { content:""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: pulse 1.6s infinite; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(255,255,255,.7)} 70%{box-shadow:0 0 0 8px rgba(255,255,255,0)} 100%{box-shadow:0 0 0 0 rgba(255,255,255,0)} }
+    .pv-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+    .btn { border: none; cursor: pointer; font-weight: 600; font-size: 14px; padding: 13px 20px; border-radius: 12px; color: #fff;
+      background: rgba(255,255,255,.14); backdrop-filter: blur(8px); transition: filter .15s, transform .12s, background .15s; }
+    .btn:hover { background: rgba(255,255,255,.24); }
+    .btn.focused, .btn:focus-visible { transform: scale(1.06); }
+    .btn:active { transform: scale(.97); }
+    .btn.pri { background: var(--grad); font-size: 15px; padding: 13px 26px; box-shadow: 0 10px 30px rgba(124,92,255,.5); }
+    .btn.pri:hover { filter: brightness(1.08); }
+    .btn.icon { padding: 13px 15px; }
+    .status { position: absolute; top: 20px; left: 48px; z-index: 3; font-size: 12.5px; color: #cfd2dd; background: rgba(0,0,0,.4); backdrop-filter: blur(6px); padding: 6px 12px; border-radius: 8px; }
+    .status:empty { display: none; }
+    .status.err { color: #ffd0d5; background: rgba(180,30,45,.5); }
+    .hintfs { position: absolute; top: 20px; right: 24px; z-index: 3; font-size: 12px; font-weight: 600; color: #dfe1ea;
+      background: rgba(0,0,0,.5); backdrop-filter: blur(6px); padding: 7px 13px; border-radius: 10px; opacity: 0; transition: .15s; }
+    .hero:hover .hintfs, .hero.focused .hintfs { opacity: 1; }
+    .tvhint { position: absolute; bottom: 14px; right: 24px; z-index: 3; color: #aeb2c0; font-size: 11px; }
+
+    .empty { text-align: center; color: var(--muted); padding: 60px 16px; }
+    .empty .big { font-size: 34px; margin-bottom: 8px; }
+    .skel { height: 64px; border-radius: 12px; margin: 0 10px 8px; animation: sk 1.2s infinite;
+      background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04)); background-size: 200% 100%; }
+    @keyframes sk { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .note { color: var(--muted); font-size: 11px; text-align: center; padding: 8px 16px 24px; }
+    .tvhint { color: var(--muted); font-size: 11px; text-align: center; padding: 4px 0 2px; border-top: 1px solid var(--border); margin-top: 6px; }
+    kbd { background: var(--surface-2); border-radius: 5px; padding: 1px 6px; font-size: 10px; font-family: inherit; }
+
+    /* Modal guía de eventos */
+    .modal { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(4px); }
+    .modal.show { display: grid; }
+    .modal-card { width: min(640px, 92vw); max-height: 86vh; overflow-y: auto; background: #14141f; border: 1px solid var(--border); border-radius: 18px; padding: 26px 28px; box-shadow: 0 40px 90px -20px rgba(0,0,0,.8); }
+    .modal-card h3 { margin: 0 0 4px; font-size: 20px; }
+    .modal-card .lead { color: var(--muted); font-size: 13px; margin: 0 0 18px; line-height: 1.5; }
+    .ev { display: flex; gap: 14px; padding: 13px 0; border-top: 1px solid var(--border); }
+    .ev .ico { font-size: 22px; flex: 0 0 auto; }
+    .ev b { font-size: 14px; }
+    .ev p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .modal-note { margin-top: 18px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .modal-close { margin-top: 20px; width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Col 1: países -->
+    <div class="panel" id="col-countries">
+      <div class="brand"><div class="logo">S</div><div><b>StreamView</b><span>IPTV · en vivo</span></div></div>
+      <div id="nav"></div>
+      <div class="side-custom">
+        <div class="side-label" style="margin:0 0 6px">Fuente propia</div>
+        <input id="playlistUrl" class="field focusable" type="text" placeholder="URL .m3u" />
+        <button id="loadList" class="btn focusable" style="width:100%; margin-top:8px">Cargar</button>
+      </div>
+    </div>
+
+    <!-- Col 2: canales -->
+    <div class="panel" id="col-channels">
+      <div class="phead">
+        <h3 id="chTitle">Canales</h3>
+        <div class="sub" id="chSub">Elige un país</div>
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="search" class="focusable" type="text" placeholder="Buscar…" />
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="chan-list" id="chanList"></div>
+      <div class="note" id="note"></div>
+    </div>
+
+    <!-- Col 3: HERO -->
+    <div class="panel" id="col-preview">
+      <div class="hero focusable" id="stage" tabindex="0">
+        <div class="empty-pv" id="emptyPv"><div><i data-lucide="monitor-play"></i><div>Selecciona un canal para previsualizar</div></div></div>
+        <video id="video" playsinline x-webkit-airplay="allow" style="display:none"></video>
+        <div class="hero-loading" id="loading"><div class="spinner"></div></div>
+        <div class="hero-error" id="heroError">
+          <div>
+            <div class="ic"><i data-lucide="wifi-off"></i></div>
+            <h4 id="errTitle">Canal no disponible</h4>
+            <p id="errMsg">Este canal no está transmitiendo en este momento. Prueba con otro de la lista.</p>
+            <button class="btn pri focusable" onclick="document.getElementById('heroError').classList.remove('show')">Entendido</button>
+          </div>
+        </div>
+        <div class="scrim"></div>
+        <div id="status" class="status"></div>
+        <div class="hintfs">▶ Pulsa OK / clic para pantalla completa</div>
+        <div class="hero-info">
+          <div class="pv-cat" id="pvCat">—</div>
+          <h2 class="pv-title" id="pvTitle">Sin reproducir</h2>
+          <div class="badges" id="pvBadges"></div>
+        </div>
+        <div class="tvhint" id="tvhint"><kbd>OK</kbd> pantalla completa</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Guía de eventos -->
+  <div class="modal" id="guide">
+    <div class="modal-card">
+      <h3>Guía de eventos</h3>
+      <p class="lead">Dónde ver cada competición de forma oficial y legal. Muchos partidos se emiten también en canales abiertos incluidos en las listas por país de esta app.</p>
+      <div class="ev"><div class="ico"><i data-lucide="globe"></i></div><div><b>Mundial FIFA 2026</b><p>FIFA+ (gratis: clásicos, resúmenes y algunos directos). Partidos en vivo: emisora con derechos en tu país — p. ej. Telemundo y FOX en EE.UU., RTVE en España, TV oficial local en Latinoamérica.</p></div></div>
+      <div class="ev"><div class="ico"><i data-lucide="shield"></i></div><div><b>NFL</b><p>NFL+ / Game Pass (DAZN fuera de EE.UU.). En abierto, parte de los partidos van por cadenas nacionales incluidas en las listas.</p></div></div>
+      <div class="ev"><div class="ico"><i data-lucide="circle-dot"></i></div><div><b>NBA</b><p>NBA League Pass (oficial). Consulta la web de la NBA para ver qué servicio tiene los derechos en tu región esta temporada.</p></div></div>
+      <div class="ev"><div class="ico"><i data-lucide="circle"></i></div><div><b>MLB</b><p>MLB.TV (oficial). Algunos partidos nacionales van por cadenas abiertas.</p></div></div>
+      <div class="ev"><div class="ico"><i data-lucide="swords"></i></div><div><b>UFC / Boxeo</b><p>PPV oficial del promotor y su servicio con derechos. Evita los enlaces "gratis" de PPV: son ilegales e inseguros.</p></div></div>
+      <div class="ev"><div class="ico"><i data-lucide="trophy"></i></div><div><b>Fútbol de ligas / Tenis</b><p>DAZN, ESPN y las apps oficiales según tu país. Muchas jornadas tienen partidos en abierto.</p></div></div>
+      <p class="modal-note">Los derechos de emisión cambian por temporada y región; confirma siempre en la web oficial de cada competición. Esta app solo reproduce canales de acceso libre y contenido oficial gratuito.</p>
+      <button class="btn pri focusable modal-close" onclick="document.getElementById('guide').classList.remove('show')">Cerrar</button>
+    </div>
+  </div>
+
+  <script>
+    const R = "https://raw.githubusercontent.com/Romaxa55/world_ip_tv/master/output/";
+    const NAV = [
+      { label: "Latinoamérica y España", items: [
+        ["España","es",148],["México","mx",104],["Argentina","ar",116],["Uruguay","uy",11],
+        ["Paraguay","py",53],["Colombia","co",95],["Chile","cl",198],["Perú","pe",148],
+        ["Bolivia","bo",66],["Ecuador","ec",64],["Venezuela","ve",57],["Costa Rica","cr",44],
+        ["Panamá","pa",16],["Rep. Dominicana","do",203],["Guatemala","gt",26],["Honduras","hn",45],
+        ["El Salvador","sv",18],["Nicaragua","ni",5],["Puerto Rico","pr",24],
+      ]},
+      { label: "Mundo", items: [
+        ["Estados Unidos","us",1032],["Brasil","br",119],["Portugal","pt",35],["Reino Unido","uk",125],
+        ["Francia","fr",93],["Italia","it",171],["Alemania","de",138],["Canadá","ca",114],["Internacionales","int",460],
+      ]},
+    ];
+    const $ = (id) => document.getElementById(id);
+    const icons = () => { try { window.lucide && lucide.createIcons(); } catch {} };
+    const video = $("video"), proxyChk = $("proxy");
+    let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
+    let currentRow = null, viewList = [], viewIndex = -1;
+    const deadUrls = new Set(); // canales que han fallado
+
+    // ----- Col 1: países -----
+    const navEl = $("nav");
+
+    // Sección especial de Eventos (FIFA+ / deportes internacionales)
+    const clearActive = () => document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active"));
+    const evLbl = document.createElement("div"); evLbl.className = "side-label"; evLbl.innerHTML = '<i data-lucide="zap"></i>Eventos'; navEl.appendChild(evLbl);
+    // --- Agregador genérico: junta varias listas verificadas y deduplica ---
+    const LATAM_CODES = ["mx","ar","co","cl","pe","ec","ve","uy","py","bo","cr","do","gt","hn","sv","ni","pa","pr"];
+    // Grandes cadenas abiertas de LatAm que suelen emitir eventos/deporte/noticias
+    const LATAM_OPEN = /(canal rcn|caracol|se[nñ]al colombia|city tv|azteca|las estrellas|imagen televi|multimedios|telefe|el trece|tv p[uú]blica|telemundo|univisi[oó]n|tudn|chilevisi|\btvn\b|\bmega\b|\bla red\b|am[eé]rica televi|america televi|\blatina\b|panamericana|\batv\b|tv per[uú]|ecuavisa|teleamazonas|tc televi|venevisi|televen|\bvtv\b|teledoce|telefuturo|\bsnt\b|paravisi|unicanal|bolivisi|unitel|red uno|\batb\b|bolivia tv|tv globo|rede globo|\bsbt\b|recordtv|record news|\bband\b|redetv|teletica|repretel|color visi|telesistema|telemicro)/i;
+
+    async function aggregate(codes, filterFn, title, subFn) {
+      clearActive();
+      $("chTitle").textContent = title; $("chSub").textContent = "Reuniendo canales…";
+      const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
+      for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
+      const parts = await Promise.all(codes.map((c) =>
+        fetch(R + c + ".m3u").then((r)=>r.text()).then(parseM3U).catch(()=>[])
+      ));
+      const seen = new Set(); const merged = [];
+      for (const arr of parts) for (const ch of arr) {
+        if (!filterFn(ch)) continue;
+        if (seen.has(ch.url)) continue;
+        seen.add(ch.url); merged.push(ch);
+      }
+      merged.sort((a,b)=>a.name.localeCompare(b.name));
+      allChannels = merged; activeGroup = "Todos"; $("search").value = "";
+      buildChips(); applyFilters();
+      $("chSub").textContent = (subFn ? subFn(merged) : merged.length + " canales") + " · ✓ verificados";
+    }
+
+    function addEventBtn(icon, label, tag, handler) {
+      const b = document.createElement("button");
+      b.className = "country focusable"; b.tabIndex = 0;
+      b.innerHTML = `<span class="lbl"><i data-lucide="${icon}"></i>${label}</span><span class="cnt">${tag}</span>`;
+      b.onclick = () => { clearActive(); b.classList.add("active"); handler(b); };
+      navEl.appendChild(b);
+      return b;
+    }
+
+    // Deporte LatAm (canales deportivos de países latinos + FIFA+)
+    addEventBtn("trophy", "Deporte LatAm", "MIX", () =>
+      aggregate([...LATAM_CODES, "int"], (ch) => ch.group === "Deportes",
+        "Deporte LatAm", (m) => m.length + " canales deportivos"));
+
+    // Canales abiertos LatAm (RCN, Telemundo, Azteca, Caracol, Globo…)
+    addEventBtn("antenna", "Abiertos LatAm", "TV", () =>
+      aggregate([...LATAM_CODES, "br"], (ch) => LATAM_OPEN.test(ch.name),
+        "Canales abiertos LatAm", (m) => m.length + " cadenas abiertas"));
+
+    // Mundial · FIFA+
+    addEventBtn("globe", "Mundial · FIFA+", "FIFA+", async () => {
+      await loadPlaylist(R + "int.m3u", "Mundial · FIFA+", "Deportes"); $("search").value = "fifa"; applyFilters(); });
+
+    // Guía de eventos
+    addEventBtn("calendar-days", "Guía de eventos", "VER", () => $("guide").classList.add("show"));
+
+    NAV.forEach((sec) => {
+      const lbl = document.createElement("div"); lbl.className = "side-label"; lbl.textContent = sec.label; navEl.appendChild(lbl);
+      sec.items.forEach(([name, code, count]) => {
+        const b = document.createElement("button");
+        b.className = "country focusable"; b.tabIndex = 0;
+        b.innerHTML = `<span>${name}</span><span class="cnt">${count}</span>`;
+        b.onclick = () => {
+          document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active"));
+          b.classList.add("active");
+          loadPlaylist(R + code + ".m3u", name);
+        };
+        navEl.appendChild(b);
+      });
+    });
+
+    // ----- Categorías -----
+    const CATS = [
+      ["Deportes", /\b(deport|sport|espn|fox ?sport|golazo|gol|f[uú]tbol|tyc|dazn|directv sport|win sport|liga|fifa|mundial|copa|eurocopa|olimp|nba|nfl|mlb|ufc|bein|tudn|teledeporte|willow)\b/i],
+      ["Noticias", /\b(notici|news|cnn|24 ?h|telesur|bbc|euronews|informativ)\b/i],
+      ["Infantil", /\b(kids|infantil|cartoon|disney|nick|junior|baby|clan|pakapaka)\b/i],
+      ["Cine y series", /\b(cine|movie|pel[ií]cul|film|series|hbo|star|universal|warner|axn|sony|tnt|amc|space|studio)\b/i],
+      ["Documentales", /\b(discovery|nat ?geo|history|animal|planet|docu|investiga)\b/i],
+      ["Música", /\b(music|m[uú]sica|mtv|hits|vevo|htv)\b/i],
+      ["Religioso", /\b(church|iglesia|gospel|ewtn|enlace|religi|cristian)\b/i],
+    ];
+    const categorize = (n) => { for (const [c,r] of CATS) if (r.test(n)) return c; return "Entretenimiento"; };
+
+    // ----- Reproducción -----
+    const setStatus = (m, err=false) => { $("status").textContent = m; $("status").className = "status" + (err?" err":""); };
+    const resolveUrl = (u) => u;
+    const initials = (n) => n.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase() || "TV";
+
+    // Traduce errores técnicos de HLS a mensajes claros para el usuario
+    function friendlyError(d) {
+      const det = (d && d.details) || "";
+      if (/manifestLoadError|manifestLoadTimeOut|manifestParsingError|levelLoadError|levelLoadTimeOut/i.test(det))
+        return { t: "No se pudo conectar con el canal", m: "El canal está fuera de servicio o bloqueado en tu región. Prueba con otro." };
+      if (/fragLoadError|fragLoadTimeOut|fragParsingError|bufferStalledError|bufferAppendError/i.test(det))
+        return { t: "Canal sin señal ahora mismo", m: "Este canal no está transmitiendo en este momento. Prueba con otro de la lista." };
+      if (d && d.type === "mediaError")
+        return { t: "Problema de reproducción", m: "No pudimos reproducir este canal. Intenta con otro." };
+      return { t: "Canal no disponible", m: "Este canal no está disponible ahora mismo. Prueba con otro de la lista." };
+    }
+    const showLoading = (on) => $("loading").classList.toggle("show", on);
+    function showError(d) {
+      showLoading(false);
+      if (loadTimer) { clearTimeout(loadTimer); loadTimer = null; }
+      const f = friendlyError(d);
+      $("errTitle").textContent = f.t; $("errMsg").textContent = f.m;
+      $("heroError").classList.add("show");
+      // Marcar el canal como "sin señal"
+      if (currentRawUrl) {
+        deadUrls.add(currentRawUrl);
+        if (currentRow) markDead(currentRow);
+      }
+    }
+    function markDead(row) {
+      row.classList.add("dead");
+      if (!row.querySelector(".dead-tag")) {
+        const q = row.querySelector(".q");
+        const tag = document.createElement("div");
+        tag.className = "q dead-tag"; tag.textContent = "SIN SEÑAL";
+        if (q) q.replaceWith(tag); else row.appendChild(tag);
+      }
+    }
+    const hideError = () => $("heroError").classList.remove("show");
+
+    function play(ch, rowEl, index) {
+      currentRawUrl = ch.url;
+      if (typeof index === "number") viewIndex = index;
+      hideError();
+      $("emptyPv").style.display = "none"; video.style.display = "block";
+      showLoading(true);
+      if (loadTimer) clearTimeout(loadTimer);
+      loadTimer = setTimeout(() => { if (video.paused || video.readyState < 3) showError({ details: "manifestLoadTimeOut" }); }, 15000);
+      $("pvTitle").textContent = ch.name; $("pvCat").textContent = ch.group || "EN VIVO";
+      const bs = $("pvBadges"); bs.innerHTML = '<span class="badge live">EN DIRECTO</span>';
+      if (ch.quality) bs.insertAdjacentHTML("beforeend", `<span class="badge">${ch.quality.toUpperCase()}</span>`);
+      if (ch.group) bs.insertAdjacentHTML("beforeend", `<span class="badge">${ch.group}</span>`);
+      document.querySelectorAll(".chan.playing").forEach((x)=>x.classList.remove("playing"));
+      currentRow = rowEl || null;
+      if (rowEl) rowEl.classList.add("playing");
+
+      const src = resolveUrl(ch.url);
+      if (hls) { hls.destroy(); hls = null; }
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.loadSource(src); hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); });
+        hls.on(Hls.Events.ERROR, (_e,d) => { if (d.fatal) showError(d); });
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = src; video.play().catch(()=>{});
+        video.onerror = () => showError({ type: "mediaError" });
+      } else showError({ details: "noHlsSupport" });
+      video.onplaying = () => { showLoading(false); hideError(); if (loadTimer) { clearTimeout(loadTimer); loadTimer = null; }
+        // si funcionó, quitar cualquier marca previa de "sin señal"
+        deadUrls.delete(currentRawUrl);
+        if (currentRow) { currentRow.classList.remove("dead"); const t = currentRow.querySelector(".dead-tag"); if (t) t.remove(); }
+      };
+    }
+
+    // Pantalla completa
+    function goFullscreen() {
+      if (!currentRawUrl) return;
+      const el = $("stage");
+      video.controls = true;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen(); // iOS
+    }
+    const inFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement;
+    function onFsChange() {
+      if (!inFullscreen()) {
+        video.controls = false;
+        // Al salir (botón Atrás), volver a la lista y enfocar el canal actual
+        if (currentRow) { currentRow.focus(); currentRow.scrollIntoView({ block: "center" }); }
+      }
+    }
+    document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    // Clic / OK sobre el preview abre pantalla completa
+    $("stage").onclick = () => goFullscreen();
+
+    // Cambiar de canal con ← → (dentro de la lista visible)
+    function playRelative(delta) {
+      if (!viewList.length) return;
+      let i = viewIndex + delta;
+      i = Math.max(0, Math.min(viewList.length - 1, i));
+      if (i === viewIndex) return;
+      const rows = document.querySelectorAll("#chanList .chan");
+      play(viewList[i], rows[i], i);
+    }
+
+    // ----- Listas -----
+    async function loadPlaylist(listUrl, title, preGroup) {
+      if (!listUrl) return;
+      $("chTitle").textContent = title || "Canales"; $("chSub").textContent = "Cargando…";
+      const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
+      for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
+      try {
+        const res = await fetch(listUrl);
+        allChannels = parseM3U(await res.text());
+        // pre-seleccionar categoría si existe en la lista, si no "Todos"
+        const groups = new Set(allChannels.map((c)=>c.group));
+        activeGroup = (preGroup && groups.has(preGroup)) ? preGroup : "Todos";
+        $("search").value = "";
+        buildChips(); applyFilters();
+        $("chSub").textContent = allChannels.length + " canales · ✓ verificados";
+      } catch { list.innerHTML = `<div class="empty"><i data-lucide="alert-triangle"></i><div>No se pudo cargar</div></div>`; icons(); $("chSub").textContent=""; }
+    }
+
+    function parseM3U(text) {
+      const lines = text.split(/\r?\n/); const items = []; let cur = null;
+      for (const line of lines) {
+        const t = line.trim();
+        if (t.startsWith("#EXTINF")) {
+          const name = (t.split(",").slice(1).join(",").trim()) || "Canal";
+          const logo = (t.match(/tvg-logo="([^"]+)"/) || [])[1] || "";
+          const quality = (name.match(/\b(2160p|1080p|720p|576p|480p|360p|4K|HD|SD)\b/i) || [])[1] || "";
+          const clean = name.replace(/\s*[\(\[][^)\]]*[\)\]]/g, "").trim() || name;
+          cur = { name: clean, logo, group: categorize(name), quality };
+        } else if (t && !t.startsWith("#")) { if (cur) { cur.url = t; items.push(cur); cur = null; } }
+      }
+      return items;
+    }
+
+    function buildChips() {
+      const groups = ["Todos", ...Array.from(new Set(allChannels.map((c)=>c.group))).sort()];
+      const el = $("chips"); el.innerHTML = "";
+      groups.forEach((g) => { const c = document.createElement("button");
+        c.className = "chip focusable" + (g===activeGroup?" active":""); c.tabIndex=0; c.textContent = g;
+        c.onclick = () => { activeGroup = g; buildChips(); applyFilters(); }; el.appendChild(c); });
+    }
+
+    function applyFilters() {
+      const q = $("search").value.trim().toLowerCase();
+      let list = allChannels;
+      if (activeGroup !== "Todos") list = list.filter((c)=>c.group===activeGroup);
+      if (q) list = list.filter((c)=>c.name.toLowerCase().includes(q) || (c.group||"").toLowerCase().includes(q));
+      renderChannels(list);
+    }
+    $("search").addEventListener("input", applyFilters);
+    $("loadList").onclick = () => { document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); loadPlaylist($("playlistUrl").value.trim(), "Playlist"); };
+
+    const MAX = 400;
+    function renderChannels(items) {
+      const list = $("chanList"); list.innerHTML = "";
+      if (!items.length) { list.innerHTML = `<div class="empty"><i data-lucide="search-x"></i><div>Sin resultados</div></div>`; icons(); $("note").textContent=""; return; }
+      const frag = document.createDocumentFragment();
+      viewList = items.slice(0, MAX); viewIndex = -1;
+      viewList.forEach((ch, idx) => {
+        const dead = deadUrls.has(ch.url);
+        const row = document.createElement("div"); row.className = "chan focusable" + (dead ? " dead" : ""); row.tabIndex = 0;
+        const img = ch.logo ? `<img src="${ch.logo}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : "";
+        const tag = dead ? `<div class="q dead-tag">SIN SEÑAL</div>` : (ch.quality ? `<div class="q">${ch.quality.toUpperCase()}</div>` : "");
+        row.innerHTML =
+          `<div class="logo"><div class="mono">${initials(ch.name)}</div>${img}</div>
+           <div class="info"><b>${ch.name}</b><small>${ch.group||""}</small></div>
+           ${tag}`;
+        row.onclick = () => play(ch, row, idx);
+        frag.appendChild(row);
+      });
+      list.appendChild(frag);
+      $("note").textContent = items.length > MAX ? `Mostrando ${MAX} de ${items.length}. Afina con el buscador.` : "";
+    }
+
+    // ----- Navegación con mando (flechas + OK) -----
+    const colOf = (el) => {
+      if (!el) return 0;
+      if (el.closest("#col-countries")) return 0;
+      if (el.closest("#col-channels")) return 1;
+      if (el.closest("#col-preview")) return 2;
+      return 0;
+    };
+    const itemsIn = (col) => {
+      const sel = ["#col-countries .focusable", "#col-channels .focusable", "#col-preview .focusable"][col];
+      return Array.from(document.querySelectorAll(sel)).filter((e)=>e.offsetParent !== null);
+    };
+    function focusFirst(col) { const it = itemsIn(col); if (it.length) it[0].focus(); }
+    document.addEventListener("keydown", (e) => {
+      const k = e.key;
+      // En pantalla completa: ← → cambian de canal; Atrás/Esc sale (nativo)
+      if (inFullscreen()) {
+        if (k === "ArrowRight") { e.preventDefault(); playRelative(1); }
+        else if (k === "ArrowLeft") { e.preventDefault(); playRelative(-1); }
+        return;
+      }
+      if (!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Enter"].includes(k)) return;
+      const active = document.activeElement;
+      const typing = active && active.tagName === "INPUT" && (k==="ArrowLeft"||k==="ArrowRight");
+      if (typing) return; // dejar mover el cursor dentro del input
+      const col = colOf(active);
+      const items = itemsIn(col);
+      const idx = items.indexOf(active);
+      if (k === "Enter") { if (active && active.click) { e.preventDefault(); active.click(); } return; }
+      if (k === "ArrowDown" || k === "ArrowUp") {
+        e.preventDefault();
+        if (!items.length) return;
+        let n = idx < 0 ? 0 : idx + (k==="ArrowDown"?1:-1);
+        n = Math.max(0, Math.min(items.length-1, n));
+        items[n].focus(); items[n].scrollIntoView({ block:"nearest" });
+      } else if (k === "ArrowRight") { e.preventDefault(); focusFirst(Math.min(2, col+1)); }
+      else if (k === "ArrowLeft") { e.preventDefault(); focusFirst(Math.max(0, col-1)); }
+    });
+    // reflejar foco con clase para estilos consistentes
+    document.addEventListener("focusin", (e) => {
+      document.querySelectorAll(".focused").forEach((x)=>x.classList.remove("focused"));
+      if (e.target.classList && e.target.classList.contains("focusable")) e.target.classList.add("focused");
+    });
+
+    // Cerrar modal al hacer clic fuera o con Escape
+    $("guide").addEventListener("click", (e) => { if (e.target.id === "guide") $("guide").classList.remove("show"); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("guide").classList.remove("show"); });
+
+    // Renderizar todos los iconos Lucide (estáticos + nav generado)
+    icons();
+  </script>
+</body>
+</html>
