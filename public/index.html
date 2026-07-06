@@ -204,22 +204,41 @@
     .modal-note { margin-top: 18px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
     .modal-close { margin-top: 20px; width: 100%; }
 
-    /* Login */
-    .auth { position: fixed; inset: 0; z-index: 100; display: none; place-items: center;
-      background: radial-gradient(1000px 600px at 50% 0%, rgba(124,92,255,.2), transparent 60%), #07070d; }
+    /* ---------- Login ---------- */
+    .auth { position: fixed; inset: 0; z-index: 100; display: none; place-items: center; overflow: hidden;
+      background: linear-gradient(160deg, #0a0a16 0%, #130a20 48%, #1a0a19 100%); }
     .auth.show { display: grid; }
-    .auth-card { width: min(380px, 92vw); text-align: center; padding: 34px 30px; }
-    .auth-logo { width: 60px; height: 60px; border-radius: 16px; background: var(--grad); margin: 0 auto 16px;
-      display: grid; place-items: center; font-weight: 800; font-size: 26px; color: #fff; box-shadow: 0 12px 34px rgba(124,92,255,.5); }
-    .auth-card h2 { margin: 0 0 4px; font-size: 24px; font-weight: 800; }
-    .auth-card .lead { color: var(--muted); font-size: 13px; margin: 0 0 22px; }
-    .auth-card input { width: 100%; padding: 13px 15px; margin-bottom: 12px; font-size: 15px;
-      background: #12121f; border: 1px solid var(--border); border-radius: 12px; color: var(--text); }
-    .auth-card input:focus { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
-    .auth-card .authbtn { width: 100%; padding: 13px; border: none; border-radius: 12px; cursor: pointer;
-      background: var(--grad); color: #fff; font-weight: 700; font-size: 15px; }
-    .auth-err { color: #ff8a95; font-size: 13px; margin-top: 12px; min-height: 18px; }
-    body.locked .app { filter: blur(4px); pointer-events: none; }
+    .auth-bg { position: absolute; inset: 0; overflow: hidden; }
+    .auth-bg span { position: absolute; border-radius: 50%; filter: blur(75px); opacity: .55; animation: float 15s ease-in-out infinite; }
+    .auth-bg span:nth-child(1){ width: 440px; height: 440px; background: #7c5cff; top: -130px; left: -90px; }
+    .auth-bg span:nth-child(2){ width: 400px; height: 400px; background: #ff4d8d; bottom: -140px; right: -70px; animation-delay: -5s; }
+    .auth-bg span:nth-child(3){ width: 320px; height: 320px; background: #ff8a3d; top: 42%; right: 18%; opacity: .32; animation-delay: -9s; }
+    @keyframes float { 0%,100%{ transform: translate(0,0) } 50%{ transform: translate(34px,-34px) } }
+    .auth-card { position: relative; z-index: 2; width: min(400px, 92vw); padding: 40px 34px; text-align: center;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 24px;
+      backdrop-filter: blur(22px); box-shadow: 0 44px 100px -25px rgba(0,0,0,.75); }
+    .auth-logo { width: 76px; height: 76px; border-radius: 21px; margin: 0 auto 14px; display: grid; place-items: center;
+      background: linear-gradient(135deg, #7c5cff, #ff4d8d); box-shadow: 0 18px 44px rgba(124,92,255,.55); }
+    .auth-logo svg { width: 34px; height: 34px; fill: #fff; margin-left: 5px; }
+    .auth-name { font-size: 27px; font-weight: 800; letter-spacing: .3px; }
+    .auth-tag { font-size: 11px; font-weight: 700; letter-spacing: .3em; color: #ff8ab0; margin-top: 3px; }
+    .auth .lead { color: #aeb2c4; font-size: 13.5px; margin: 18px 0 22px; }
+    .auth-field { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.3);
+      border: 1px solid rgba(255,255,255,.1); border-radius: 13px; padding: 0 14px; margin-bottom: 13px;
+      transition: border-color .15s, box-shadow .15s; }
+    .auth-field:focus-within { border-color: transparent; box-shadow: 0 0 0 2px #7c5cff; }
+    .auth-field > svg { width: 18px; height: 18px; stroke: #8b90a3; flex: 0 0 auto; }
+    .auth-field input { flex: 1; background: none; border: none; outline: none; color: #fff; font-size: 15px; padding: 14px 0; }
+    .auth-field .eye { background: none; border: none; cursor: pointer; padding: 6px; color: #8b90a3; display: grid; place-items: center; }
+    .auth-field .eye svg { width: 18px; height: 18px; stroke: currentColor; }
+    .authbtn { width: 100%; margin-top: 6px; padding: 15px; border: none; border-radius: 13px; cursor: pointer; color: #fff;
+      font-weight: 700; font-size: 15.5px; background: linear-gradient(135deg, #7c5cff, #ff4d8d);
+      box-shadow: 0 14px 38px rgba(124,92,255,.5); transition: filter .15s, transform .1s; }
+    .authbtn:hover { filter: brightness(1.08); } .authbtn:active { transform: scale(.98); } .authbtn:disabled { opacity: .65; }
+    .auth-err { color: #ff9aa6; font-size: 13px; margin-top: 14px; min-height: 18px; }
+    .auth-foot { margin-top: 18px; font-size: 11px; color: #7f8398; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .auth-foot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #2ee6a6; box-shadow: 0 0 8px #2ee6a6; }
+    body.locked .app { filter: blur(6px); pointer-events: none; }
 
     /* Indicador de versión */
     .verline { margin: 10px 8px 2px; font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
@@ -231,14 +250,24 @@
 <body>
   <!-- Login -->
   <div class="auth" id="authGate">
+    <div class="auth-bg"><span></span><span></span><span></span></div>
     <div class="auth-card">
-      <div class="auth-logo">S</div>
-      <h2>StreamView</h2>
+      <div class="auth-logo"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+      <div class="auth-name">StreamView</div>
+      <div class="auth-tag">IPTV · EN VIVO</div>
       <p class="lead" id="authLead">Inicia sesión para continuar</p>
-      <input id="authUser" placeholder="Usuario" autocomplete="username" />
-      <input id="authPass" type="password" placeholder="Contraseña" autocomplete="current-password" />
+      <div class="auth-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+        <input id="authUser" placeholder="Usuario" autocomplete="username" />
+      </div>
+      <div class="auth-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <input id="authPass" type="password" placeholder="Contraseña" autocomplete="current-password" />
+        <button class="eye" id="authEye" type="button" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
       <button class="authbtn" id="authBtn">Entrar</button>
       <div class="auth-err" id="authErr"></div>
+      <div class="auth-foot">Acceso privado · un usuario por dispositivo</div>
     </div>
   </div>
 
@@ -886,6 +915,7 @@
     }
     $("authBtn").onclick = doLogin;
     $("authPass").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+    $("authEye").onclick = () => { const p = $("authPass"); p.type = p.type === "password" ? "text" : "password"; };
 
     function startValidate() {
       if (validateTimer) clearInterval(validateTimer);
