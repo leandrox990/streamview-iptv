@@ -229,7 +229,8 @@
     .auth-field { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.05);
       border: 1px solid rgba(255,255,255,.12); border-radius: 13px; padding: 0 15px; margin-bottom: 13px;
       transition: border-color .15s, box-shadow .15s; }
-    .auth-field:focus-within, .auth-field input:focus { border-color: transparent; box-shadow: 0 0 0 2px #7c5cff; }
+    .auth-field:focus-within { border-color: rgba(124,92,255,.7); background: rgba(124,92,255,.09); }
+    .auth-field input:focus, .auth-field:focus-within { box-shadow: none; outline: none; }
     .auth-field > svg { width: 19px; height: 19px; stroke: #8b90a3; flex: 0 0 auto; }
     .auth-field input { flex: 1; background: none; border: none; outline: none; color: #fff; font-size: 15px; padding: 15px 0; }
     .auth-field .eye { background: none; border: none; cursor: pointer; padding: 6px; color: #8b90a3; display: grid; place-items: center; }
@@ -297,6 +298,7 @@
     <!-- Col 1: países -->
     <div class="panel" id="col-countries">
       <div class="brand"><div class="logo">S</div><div><b>StreamView</b><span>IPTV · en vivo</span></div></div>
+      <div id="dynLists"></div>
       <div id="nav"></div>
       <div class="side-custom">
         <div class="side-label" style="margin:0 0 6px">Fuente propia</div>
@@ -997,11 +999,29 @@
       if (!AUTH_ON) return;
       try {
         const { data } = await client().rpc("sv_config");
-        if (data && data.latest_version && data.latest_version !== APP_VERSION) {
+        if (!data) return;
+        if (data.latest_version && data.latest_version !== APP_VERSION) {
           const vl = $("verLine"); vl.classList.add("upd");
           $("verText").textContent = "v" + APP_VERSION + " · actualización: v" + data.latest_version;
         }
+        renderDynamicLists(data.lists);   // listas configuradas desde el panel admin
       } catch {}
+    }
+    function renderDynamicLists(listsText) {
+      let lists = [];
+      try { lists = JSON.parse(listsText || "[]"); } catch {}
+      const holder = $("dynLists"); if (!holder) return;
+      holder.innerHTML = "";
+      if (!Array.isArray(lists) || !lists.length) return;
+      const lbl = document.createElement("div"); lbl.className = "side-label"; lbl.innerHTML = '<i data-lucide="list-video"></i>Mis listas'; holder.appendChild(lbl);
+      lists.forEach((it) => {
+        if (!it || !it.name || !it.url) return;
+        const b = document.createElement("button"); b.className = "country focusable"; b.tabIndex = 0;
+        b.innerHTML = `<span class="lbl"><i data-lucide="play"></i>${it.name}</span>`;
+        b.onclick = () => { document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); b.classList.add("active"); loadPlaylist(it.url, it.name); };
+        holder.appendChild(b);
+      });
+      icons();
     }
 
     $("verText").textContent = "v" + APP_VERSION;

@@ -95,6 +95,17 @@
       <div class="msg" id="verMsg"></div>
     </div>
 
+    <!-- Listas dinámicas -->
+    <div class="card">
+      <h2>Listas de canales (aparecen en la app, sin reinstalar)</h2>
+      <p class="muted" style="margin:0 0 10px">Una por línea con el formato <b>Nombre | URL</b> (una URL .m3u/.m3u8). Se muestran en la app bajo “Mis listas”.</p>
+      <textarea id="lists" rows="6" placeholder="Deportes RD | https://ejemplo.com/deportes.m3u
+Películas | https://ejemplo.com/pelis.m3u8"
+        style="width:100%;padding:11px 13px;background:#0d0f15;border:1px solid var(--bd);border-radius:9px;color:var(--tx);font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <div style="margin-top:12px"><button id="listsBtn">Guardar listas</button></div>
+      <div class="msg" id="listsMsg"></div>
+    </div>
+
     <!-- Seguridad -->
     <div class="card">
       <h2>Cambiar token de administrador</h2>
@@ -141,7 +152,7 @@
     if (!r.ok) return say($("connMsg"), r.error || "No se pudo entrar", false);
     $("connMsg").className = "msg";
     $("panel").classList.remove("hide"); $("connCard").classList.add("hide");
-    renderUsers(r.users); loadVersion();
+    renderUsers(r.users); loadVersion(); loadLists();
   };
 
   $("reloadBtn").onclick = async () => { const r = await admin("list_users"); if (r.ok) renderUsers(r.users); };
@@ -201,6 +212,22 @@
     const r = await admin("set_version", { latest_version: $("vLatest").value.trim(), min_version: $("vMin").value.trim(), message: $("vMsg").value.trim() });
     say($("verMsg"), r.ok ? "Versión guardada." : (r.error || "Error"), r.ok);
   };
+  async function loadLists() {
+    const { data } = await supa.rpc("sv_config");
+    let lists = []; try { lists = JSON.parse((data && data.lists) || "[]"); } catch {}
+    $("lists").value = (lists || []).filter((x) => x && x.name && x.url).map((x) => x.name + " | " + x.url).join("\n");
+  }
+  $("listsBtn").onclick = async () => {
+    const lists = $("lists").value.split(/\n/).map((line) => {
+      const i = line.indexOf("|"); if (i < 0) return null;
+      const name = line.slice(0, i).trim(), url = line.slice(i + 1).trim();
+      return (name && url) ? { name, url } : null;
+    }).filter(Boolean);
+    const { data, error } = await supa.rpc("sv_set_lists", { p_token: TOKEN, p_lists: JSON.stringify(lists) });
+    if (error) return say($("listsMsg"), error.message, false);
+    say($("listsMsg"), data && data.ok ? "Listas guardadas. Aparecerán en la app al abrirla." : (data && data.error) || "Error", data && data.ok);
+  };
+
   $("tokBtn").onclick = async () => {
     const nt = $("newTok").value; if (!nt) return;
     const r = await admin("set_admin_token", { new_token: nt });
