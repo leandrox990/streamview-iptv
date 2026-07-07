@@ -1003,21 +1003,31 @@
         renderDynamicLists(data.lists);   // listas configuradas desde el panel admin
       } catch {}
     }
+    let customChannels = [];
     function renderDynamicLists(listsText) {
-      let lists = [];
-      try { lists = JSON.parse(listsText || "[]"); } catch {}
+      let arr = [];
+      try { arr = JSON.parse(listsText || "[]"); } catch {}
+      customChannels = (Array.isArray(arr) ? arr : [])
+        .filter((c) => c && c.name && c.url)
+        .map((c) => ({ name: c.name, url: c.url, logo: c.logo || "", group: "Mis canales", quality: "" }));
       const holder = $("dynLists"); if (!holder) return;
       holder.innerHTML = "";
-      if (!Array.isArray(lists) || !lists.length) return;
-      const lbl = document.createElement("div"); lbl.className = "side-label"; lbl.innerHTML = '<i data-lucide="list-video"></i>Mis listas'; holder.appendChild(lbl);
-      lists.forEach((it) => {
-        if (!it || !it.name || !it.url) return;
-        const b = document.createElement("button"); b.className = "country focusable"; b.tabIndex = 0;
-        b.innerHTML = `<span class="lbl"><i data-lucide="play"></i>${it.name}</span>`;
-        b.onclick = () => { document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); b.classList.add("active"); loadPlaylist(it.url, it.name); };
-        holder.appendChild(b);
-      });
+      if (!customChannels.length) return;
+      const lbl = document.createElement("div"); lbl.className = "side-label"; lbl.innerHTML = '<i data-lucide="tv"></i>Mis canales'; holder.appendChild(lbl);
+      const b = document.createElement("button"); b.className = "country focusable"; b.tabIndex = 0;
+      b.innerHTML = `<span class="lbl"><i data-lucide="tv"></i>Mis canales</span><span class="cnt">${customChannels.length}</span>`;
+      b.onclick = () => { document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); b.classList.add("active"); loadMyChannels(); };
+      holder.appendChild(b);
       icons();
+    }
+    function loadMyChannels() {
+      globalMode = false; updateGlobalBtn();
+      $("chTitle").textContent = "Mis canales";
+      allChannels = customChannels.slice();
+      activeGroup = "Todos"; $("search").value = "";
+      $("chips").style.display = "none";
+      renderChannels(allChannels);
+      $("chSub").textContent = customChannels.length + " canales añadidos";
     }
 
     $("verText").textContent = "v" + APP_VERSION;

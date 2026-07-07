@@ -95,14 +95,15 @@
       <div class="msg" id="verMsg"></div>
     </div>
 
-    <!-- Listas dinámicas -->
+    <!-- Mis canales (dinámicos) -->
     <div class="card">
-      <h2>Listas de canales (aparecen en la app, sin reinstalar)</h2>
-      <p class="muted" style="margin:0 0 10px">Una por línea con el formato <b>Nombre | URL</b> (una URL .m3u/.m3u8). Se muestran en la app bajo “Mis listas”.</p>
-      <textarea id="lists" rows="6" placeholder="Deportes RD | https://ejemplo.com/deportes.m3u
-Películas | https://ejemplo.com/pelis.m3u8"
+      <h2>Mis canales (aparecen en la app, sin reinstalar)</h2>
+      <p class="muted" style="margin:0 0 10px">Un canal por línea: <b>Nombre | URL del stream | Logo (opcional)</b>.
+        La URL es el enlace directo del canal (.m3u8 / .ts). Se muestran en la app bajo “Mis canales”.</p>
+      <textarea id="lists" rows="6" placeholder="CDN Deportes 2 | http://200.125.170.122:8000/play/a03j/index.m3u8
+Antena 7 | https://ejemplo.com/antena7.m3u8 | https://ejemplo.com/logo.png"
         style="width:100%;padding:11px 13px;background:#0d0f15;border:1px solid var(--bd);border-radius:9px;color:var(--tx);font-size:13px;font-family:inherit;resize:vertical"></textarea>
-      <div style="margin-top:12px"><button id="listsBtn">Guardar listas</button></div>
+      <div style="margin-top:12px"><button id="listsBtn">Guardar canales</button></div>
       <div class="msg" id="listsMsg"></div>
     </div>
 
@@ -215,17 +216,17 @@ Películas | https://ejemplo.com/pelis.m3u8"
   async function loadLists() {
     const { data } = await supa.rpc("sv_config");
     let lists = []; try { lists = JSON.parse((data && data.lists) || "[]"); } catch {}
-    $("lists").value = (lists || []).filter((x) => x && x.name && x.url).map((x) => x.name + " | " + x.url).join("\n");
+    $("lists").value = (lists || []).filter((x) => x && x.name && x.url)
+      .map((x) => x.name + " | " + x.url + (x.logo ? " | " + x.logo : "")).join("\n");
   }
   $("listsBtn").onclick = async () => {
-    const lists = $("lists").value.split(/\n/).map((line) => {
-      const i = line.indexOf("|"); if (i < 0) return null;
-      const name = line.slice(0, i).trim(), url = line.slice(i + 1).trim();
-      return (name && url) ? { name, url } : null;
+    const items = $("lists").value.split(/\n/).map((line) => {
+      const p = line.split("|").map((s) => s.trim());
+      return (p[0] && p[1]) ? { name: p[0], url: p[1], logo: p[2] || "" } : null;
     }).filter(Boolean);
-    const { data, error } = await supa.rpc("sv_set_lists", { p_token: TOKEN, p_lists: JSON.stringify(lists) });
+    const { data, error } = await supa.rpc("sv_set_lists", { p_token: TOKEN, p_lists: JSON.stringify(items) });
     if (error) return say($("listsMsg"), error.message, false);
-    say($("listsMsg"), data && data.ok ? "Listas guardadas. Aparecerán en la app al abrirla." : (data && data.error) || "Error", data && data.ok);
+    say($("listsMsg"), data && data.ok ? "Canales guardados. Aparecerán en la app al abrirla." : (data && data.error) || "Error", data && data.ok);
   };
 
   $("tokBtn").onclick = async () => {
