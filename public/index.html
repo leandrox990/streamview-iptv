@@ -625,14 +625,8 @@
       currentRow = rowEl || null;
       if (rowEl) rowEl.classList.add("playing");
 
-      // App Android: reproducir a PANTALLA COMPLETA con ExoPlayer (fiable).
-      if (NATIVE) {
-        showPoster(ch);
-        NATIVE.setSource(ch.url, ch.name);
-        NATIVE.enterFs();
-        return;
-      }
-
+      // Preview en el panel con hls.js (igual en PC y en el APK; el vídeo se ve inline).
+      // La pantalla completa (al pulsar sobre el preview) sí usa ExoPlayer nativo.
       $("emptyPv").style.display = "none"; video.style.display = "block";
       showLoading(true);
       if (loadTimer) clearTimeout(loadTimer);
@@ -658,8 +652,14 @@
     // Pantalla completa
     function goFullscreen() {
       if (!currentRawUrl) return;
-      // App Android: pantalla completa con ExoPlayer
-      if (NATIVE) { NATIVE.setSource(currentRawUrl, $("pvTitle").textContent||""); NATIVE.enterFs(); return; }
+      // App Android: pausar el preview (hls.js) y reproducir a pantalla completa con ExoPlayer
+      if (NATIVE) {
+        if (hls) { try { hls.destroy(); } catch {} hls = null; }
+        try { video.pause(); } catch {}
+        NATIVE.setSource(currentRawUrl, $("pvTitle").textContent || "");
+        NATIVE.enterFs();
+        return;
+      }
       const el = $("stage");
       video.controls = true;
       if (el.requestFullscreen) el.requestFullscreen();
@@ -679,8 +679,9 @@
       if (rows[i]) { rows[i].classList.add("playing"); currentRow = rows[i]; }
       if (NATIVE) NATIVE.setSource(ch.url, ch.name); // sigue en pantalla completa
     };
-    window.tvExit = function () {   // salió de fullscreen: volver a la lista
+    window.tvExit = function () {   // salió de fullscreen: volver a la lista y reanudar el preview
       if (currentRow) { currentRow.focus(); currentRow.scrollIntoView({ block: "center" }); }
+      if (NATIVE && viewList[viewIndex]) { try { play(viewList[viewIndex], currentRow, viewIndex); } catch {} }
     };
     window.tvHidden = function () { previewOn = false; }; // se cerró el preview
     const inFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement;
