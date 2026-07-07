@@ -369,6 +369,9 @@
 
   <script>
     const R = "https://raw.githubusercontent.com/Romaxa55/world_ip_tv/master/output/";
+    const IPTVORG = "https://iptv-org.github.io/iptv/countries/";
+    // descarga una lista (por proxy en la web; directo en el APK)
+    const fetchList = (url) => fetch(url).then((r) => r.text());
     // Países latinos (menú principal), ordenados alfabéticamente
     const LATINO = [
       ["Argentina","ar",116],["Bolivia","bo",66],["Chile","cl",198],["Colombia","co",95],
@@ -505,11 +508,11 @@
       sec.items.forEach(([name, code, count]) => {
         const b = document.createElement("button");
         b.className = "country focusable"; b.tabIndex = 0;
-        b.innerHTML = `<span>${name}</span><span class="cnt">${count}</span>`;
+        b.innerHTML = `<span>${name}</span>`;
         b.onclick = () => {
           document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active"));
           b.classList.add("active");
-          loadPlaylist(R + code + ".m3u", name);
+          loadCountry(code, name);
         };
         navEl.appendChild(b);
       });
@@ -531,10 +534,10 @@
       const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
       for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
       const parts = await Promise.all(INTL_COUNTRIES.map(([name, c]) =>
-        fetch(R + c + ".m3u")
-          .then((r) => r.text())
-          .then((t) => parseM3U(t).map((ch) => { ch.group = name; ch.country = name; return ch; }))
-          .catch(() => [])
+        Promise.all([
+          fetchList(R + c + ".m3u").then(parseM3U).catch(() => []),
+          fetchList(IPTVORG + c + ".m3u").then(parseM3U).catch(() => []),
+        ]).then(([a, b]) => [...a, ...b].map((ch) => { ch.group = name; ch.country = name; return ch; }))
       ));
       const seen = new Set(); const merged = [];
       for (const arr of parts) for (const ch of arr) { if (seen.has(ch.url)) continue; seen.add(ch.url); merged.push(ch); }
@@ -720,6 +723,29 @@
     video.addEventListener("pause", () => {
       if (currentRawUrl && video.src) video.play().catch(()=>{});
     });
+
+    // ----- Cargar un país fusionando fuentes (verificados + iptv-org) -----
+    async function loadCountry(code, name) {
+      globalMode = false; updateGlobalBtn();
+      $("chTitle").textContent = name; $("chSub").textContent = "Cargando…";
+      const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
+      for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
+      try {
+        const [ra, io] = await Promise.all([
+          fetchList(R + code + ".m3u").then(parseM3U).catch(() => []),        // Romaxa (verificados)
+          fetchList(IPTVORG + code + ".m3u").then(parseM3U).catch(() => []),  // iptv-org (más canales)
+        ]);
+        const seen = new Set(); const merged = [];
+        for (const ch of ra) if (ch.url && !seen.has(ch.url)) { seen.add(ch.url); merged.push(ch); }
+        for (const ch of io) if (ch.url && !seen.has(ch.url)) { seen.add(ch.url); merged.push(ch); }
+        allChannels = merged; activeGroup = "Todos"; $("search").value = "";
+        $("chips").style.display = "";
+        buildChips(); applyFilters();
+        $("chSub").textContent = merged.length + " canales";
+      } catch {
+        list.innerHTML = `<div class="empty"><i data-lucide="alert-triangle"></i><div>No se pudo cargar</div></div>`; icons(); $("chSub").textContent = "";
+      }
+    }
 
     // ----- Listas -----
     async function loadPlaylist(listUrl, title, preGroup) {
