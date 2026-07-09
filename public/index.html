@@ -82,6 +82,15 @@
     .brand b { font-size: 16px; font-weight: 800; }
     .brand span { color: var(--muted); font-size: 10px; display: block; margin-top: -2px; }
     .side-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 14px 16px 4px; font-weight: 600; }
+    .side-head { display: flex; align-items: center; justify-content: space-between; width: calc(100% - 16px); margin: 14px 8px 4px; padding: 7px 9px;
+      background: none; border: none; cursor: pointer; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 600; border-radius: 9px; }
+    .side-head > span { display: flex; align-items: center; gap: 6px; }
+    .side-head svg { width: 13px; height: 13px; }
+    .side-head:hover { background: var(--surface); }
+    .side-head .chev { transition: transform .2s; }
+    .side-head.open .chev { transform: rotate(180deg); }
+    .collapse { display: none; }
+    .collapse.open { display: block; }
     .country { display: flex; justify-content: space-between; align-items: center; gap: 8px;
       width: calc(100% - 16px); margin: 2px 8px; padding: 9px 12px; border-radius: 10px;
       background: transparent; border: 1px solid transparent; color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; }
@@ -303,6 +312,7 @@
     <div class="panel" id="col-countries">
       <div class="brand"><div class="logo">S</div><div><b>StreamView</b><span>IPTV · en vivo</span></div></div>
       <div id="dynLists"></div>
+      <div id="dynPlaylists"></div>
       <div id="nav"></div>
       <div class="side-custom">
         <input type="checkbox" id="proxy" checked hidden />
@@ -593,14 +603,18 @@
     });
 
     // Sección Internacional: lista de países del resto del mundo
-    const intlLbl = document.createElement("div"); intlLbl.className = "side-label";
-    intlLbl.innerHTML = '<i data-lucide="globe"></i>Internacional'; navEl.appendChild(intlLbl);
+    const intlHead = document.createElement("button");
+    intlHead.className = "side-head focusable"; intlHead.tabIndex = 0;
+    intlHead.innerHTML = '<span><i data-lucide="globe"></i>Internacional</span><i data-lucide="chevron-down" class="chev"></i>';
+    const intlBox = document.createElement("div"); intlBox.className = "collapse";
+    intlHead.onclick = () => { const open = intlBox.classList.toggle("open"); intlHead.classList.toggle("open", open); };
+    navEl.appendChild(intlHead); navEl.appendChild(intlBox);
     INTL_COUNTRIES.forEach(([name, code]) => {
       const b = document.createElement("button");
       b.className = "country focusable"; b.tabIndex = 0;
       b.innerHTML = `<span>${name}</span>`;
       b.onclick = () => { clearActive(); b.classList.add("active"); loadCountry(code, name); };
-      navEl.appendChild(b);
+      intlBox.appendChild(b);
     });
 
     async function loadInternational() {
@@ -1126,8 +1140,23 @@
           $("verLine").classList.remove("upd");
           $("verText").textContent = "v" + APP_VERSION;
         }
-        renderDynamicLists(data.lists);   // listas configuradas desde el panel admin
+        renderDynamicLists(data.lists);       // "Mis canales" (canales sueltos)
+        renderDynamicPlaylists(data.playlists); // "Mis listas" (playlists M3U)
       } catch {}
+    }
+    function renderDynamicPlaylists(txt) {
+      let arr = []; try { arr = JSON.parse(txt || "[]"); } catch {}
+      arr = (Array.isArray(arr) ? arr : []).filter((x) => x && x.name && x.url);
+      const holder = $("dynPlaylists"); if (!holder) return; holder.innerHTML = "";
+      if (!arr.length) return;
+      const lbl = document.createElement("div"); lbl.className = "side-label"; lbl.innerHTML = '<i data-lucide="list-video"></i>Mis listas'; holder.appendChild(lbl);
+      arr.forEach((it) => {
+        const b = document.createElement("button"); b.className = "country focusable"; b.tabIndex = 0;
+        b.innerHTML = `<span class="lbl"><i data-lucide="list"></i>${it.name}</span>`;
+        b.onclick = () => { document.querySelectorAll(".country").forEach((x)=>x.classList.remove("active")); b.classList.add("active"); loadPlaylist(it.url, it.name); };
+        holder.appendChild(b);
+      });
+      icons();
     }
     let customChannels = [];
     function renderDynamicLists(listsText) {

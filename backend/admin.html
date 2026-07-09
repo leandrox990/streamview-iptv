@@ -107,6 +107,17 @@ Antena 7 | https://ejemplo.com/antena7.m3u8 | https://ejemplo.com/logo.png"
       <div class="msg" id="listsMsg"></div>
     </div>
 
+    <!-- Mis listas (playlists M3U completas) -->
+    <div class="card">
+      <h2>Mis listas (playlists M3U completas)</h2>
+      <p class="muted" style="margin:0 0 10px">Una lista por línea: <b>Nombre | URL .m3u/.m3u8</b>. Carga una playlist entera (muchos canales), no un solo canal. Se muestran en la app bajo “Mis listas”.</p>
+      <textarea id="playlists" rows="5" placeholder="Pluto TV | https://i.mjh.nz/PlutoTV/all.m3u8
+Samsung TV Plus | https://i.mjh.nz/SamsungTVPlus/all.m3u8"
+        style="width:100%;padding:11px 13px;background:#0d0f15;border:1px solid var(--bd);border-radius:9px;color:var(--tx);font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <div style="margin-top:12px"><button id="playlistsBtn">Guardar listas</button></div>
+      <div class="msg" id="playlistsMsg"></div>
+    </div>
+
     <!-- Seguridad -->
     <div class="card">
       <h2>Cambiar token de administrador</h2>
@@ -153,7 +164,7 @@ Antena 7 | https://ejemplo.com/antena7.m3u8 | https://ejemplo.com/logo.png"
     if (!r.ok) return say($("connMsg"), r.error || "No se pudo entrar", false);
     $("connMsg").className = "msg";
     $("panel").classList.remove("hide"); $("connCard").classList.add("hide");
-    renderUsers(r.users); loadVersion(); loadLists();
+    renderUsers(r.users); loadVersion(); loadLists(); loadPlaylistsCfg();
   };
 
   $("reloadBtn").onclick = async () => { const r = await admin("list_users"); if (r.ok) renderUsers(r.users); };
@@ -227,6 +238,22 @@ Antena 7 | https://ejemplo.com/antena7.m3u8 | https://ejemplo.com/logo.png"
     const { data, error } = await supa.rpc("sv_set_lists", { p_token: TOKEN, p_lists: JSON.stringify(items) });
     if (error) return say($("listsMsg"), error.message, false);
     say($("listsMsg"), data && data.ok ? "Canales guardados. Aparecerán en la app al abrirla." : (data && data.error) || "Error", data && data.ok);
+  };
+
+  async function loadPlaylistsCfg() {
+    const { data } = await supa.rpc("sv_config");
+    let arr = []; try { arr = JSON.parse((data && data.playlists) || "[]"); } catch {}
+    $("playlists").value = (arr || []).filter((x) => x && x.name && x.url).map((x) => x.name + " | " + x.url).join("\n");
+  }
+  $("playlistsBtn").onclick = async () => {
+    const items = $("playlists").value.split(/\n/).map((line) => {
+      const i = line.indexOf("|"); if (i < 0) return null;
+      const name = line.slice(0, i).trim(), url = line.slice(i + 1).trim();
+      return (name && url) ? { name, url } : null;
+    }).filter(Boolean);
+    const { data, error } = await supa.rpc("sv_set_playlists", { p_token: TOKEN, p_lists: JSON.stringify(items) });
+    if (error) return say($("playlistsMsg"), error.message, false);
+    say($("playlistsMsg"), data && data.ok ? "Listas guardadas. Aparecerán en la app al abrirla." : (data && data.error) || "Error", data && data.ok);
   };
 
   $("tokBtn").onclick = async () => {
