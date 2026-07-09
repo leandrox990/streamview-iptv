@@ -168,6 +168,9 @@
     .btn.pri { background: var(--grad); font-size: 15px; padding: 13px 26px; box-shadow: 0 10px 30px rgba(124,92,255,.5); }
     .btn.pri:hover { filter: brightness(1.08); }
     .btn.icon { padding: 13px 15px; }
+    .btn svg { width: 17px; height: 17px; margin-right: 7px; vertical-align: -3px; }
+    #favBtn.on { color: #ffcf4d; }
+    #favBtn.on svg { fill: #ffcf4d; }
     .status { position: absolute; top: 20px; left: 48px; z-index: 3; font-size: 12.5px; color: #cfd2dd; background: rgba(0,0,0,.4); backdrop-filter: blur(6px); padding: 6px 12px; border-radius: 8px; }
     .status:empty { display: none; }
     .status.err { color: #ffd0d5; background: rgba(180,30,45,.5); }
@@ -351,6 +354,7 @@
           <div class="pv-cat" id="pvCat">—</div>
           <h2 class="pv-title" id="pvTitle">Sin reproducir</h2>
           <div class="badges" id="pvBadges"></div>
+          <div class="pv-actions"><button id="favBtn" class="btn focusable"><i data-lucide="star"></i>Favorito</button></div>
         </div>
         <div class="tvhint" id="tvhint"><kbd>OK</kbd> pantalla completa</div>
       </div>
@@ -409,7 +413,7 @@
     const AUTH_ON = /^https:\/\//.test(SUPABASE_URL) && SUPABASE_ANON.length > 20;
     // ==================================================================
     let hls = null, currentRawUrl = "", allChannels = [], activeGroup = "Todos", loadTimer = null;
-    let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null, previewOn = false;
+    let currentRow = null, viewList = [], viewIndex = -1, bannerTimer = null, previewOn = false, currentCh = null;
     // Rect del panel de preview en píxeles del dispositivo (para ExoPlayer nativo)
     function stageRect() {
       const r = $("stage").getBoundingClientRect(); const s = window.devicePixelRatio || 1;
@@ -429,6 +433,23 @@
       saveFavs();
       const fc = document.getElementById("favCnt"); if (fc) fc.textContent = favs.length;
     }
+    // Botón de favorito en el preview (accesible con el mando)
+    function updateFavBtn() {
+      const btn = document.getElementById("favBtn"); if (!btn) return;
+      const on = currentCh && favUrls.has(currentCh.url);
+      btn.classList.toggle("on", !!on);
+      btn.innerHTML = `<i data-lucide="star"></i>${on ? "Quitar favorito" : "Favorito"}`;
+      icons();
+    }
+    (function () {
+      const btn = document.getElementById("favBtn");
+      if (btn) btn.onclick = () => {
+        if (!currentCh) return;
+        toggleFav(currentCh);
+        updateFavBtn();
+        if (currentRow) { const s = currentRow.querySelector(".fav"); if (s) s.classList.toggle("on", favUrls.has(currentCh.url)); }
+      };
+    })();
 
     // ----- Búsqueda global -----
     let globalMode = false, globalIndex = null;
@@ -627,8 +648,9 @@
       hideError();
       setNowInfo(ch);
       document.querySelectorAll(".chan.playing").forEach((x)=>x.classList.remove("playing"));
-      currentRow = rowEl || null;
+      currentRow = rowEl || null; currentCh = ch;
       if (rowEl) rowEl.classList.add("playing");
+      updateFavBtn();
 
       // Preview en el panel con hls.js (igual en PC y en el APK; el vídeo se ve inline).
       // La pantalla completa (al pulsar sobre el preview) sí usa ExoPlayer nativo.
