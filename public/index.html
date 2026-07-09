@@ -390,11 +390,20 @@
       ["Paraguay","py",53],["Perú","pe",148],["Puerto Rico","pr",24],["Rep. Dominicana","do",203],
       ["Uruguay","uy",11],["Venezuela","ve",57],
     ].sort((a, b) => a[0].localeCompare(b[0], "es"));
-    // Resto de países → sección Internacionales (agrupados por país)
+    // Resto del mundo → sección Internacional (lista de países, alfabética)
     const INTL_COUNTRIES = [
-      ["Alemania","de"],["Brasil","br"],["Canadá","ca"],["Estados Unidos","us"],
-      ["Francia","fr"],["Italia","it"],["Portugal","pt"],["Reino Unido","uk"],
-    ];
+      ["Alemania","de"],["Arabia Saudí","sa"],["Australia","au"],["Austria","at"],
+      ["Bélgica","be"],["Brasil","br"],["Bulgaria","bg"],["Canadá","ca"],["China","cn"],
+      ["Corea del Sur","kr"],["Croacia","hr"],["Dinamarca","dk"],["Egipto","eg"],
+      ["Emiratos Árabes","ae"],["Eslovaquia","sk"],["España","es"],["Estados Unidos","us"],
+      ["Filipinas","ph"],["Finlandia","fi"],["Francia","fr"],["Grecia","gr"],["Hungría","hu"],
+      ["India","in"],["Indonesia","id"],["Irlanda","ie"],["Israel","il"],["Italia","it"],
+      ["Japón","jp"],["Malasia","my"],["Marruecos","ma"],["Noruega","no"],["Nueva Zelanda","nz"],
+      ["Países Bajos","nl"],["Pakistán","pk"],["Polonia","pl"],["Portugal","pt"],
+      ["Reino Unido","uk"],["República Checa","cz"],["Rumanía","ro"],["Rusia","ru"],
+      ["Serbia","rs"],["Singapur","sg"],["Sudáfrica","za"],["Suecia","se"],["Suiza","ch"],
+      ["Tailandia","th"],["Taiwán","tw"],["Turquía","tr"],["Ucrania","ua"],["Vietnam","vn"],
+    ].sort((a, b) => a[0].localeCompare(b[0], "es"));
     const NAV = [ { label: "Países latinos", items: LATINO } ];
     const $ = (id) => document.getElementById(id);
     const icons = () => { try { window.lucide && lucide.createIcons(); } catch {} };
@@ -545,14 +554,16 @@
       });
     });
 
-    // Sección Internacionales (resto de países, agrupados por país)
+    // Sección Internacional: lista de países del resto del mundo
     const intlLbl = document.createElement("div"); intlLbl.className = "side-label";
-    intlLbl.innerHTML = '<i data-lucide="globe"></i>Global'; navEl.appendChild(intlLbl);
-    const intlBtn = document.createElement("button");
-    intlBtn.className = "country focusable"; intlBtn.tabIndex = 0;
-    intlBtn.innerHTML = '<span class="lbl"><i data-lucide="globe"></i>Internacionales</span><span class="cnt">MUNDO</span>';
-    intlBtn.onclick = () => { clearActive(); intlBtn.classList.add("active"); loadInternational(); };
-    navEl.appendChild(intlBtn);
+    intlLbl.innerHTML = '<i data-lucide="globe"></i>Internacional'; navEl.appendChild(intlLbl);
+    INTL_COUNTRIES.forEach(([name, code]) => {
+      const b = document.createElement("button");
+      b.className = "country focusable"; b.tabIndex = 0;
+      b.innerHTML = `<span>${name}</span>`;
+      b.onclick = () => { clearActive(); b.classList.add("active"); loadCountry(code, name); };
+      navEl.appendChild(b);
+    });
 
     async function loadInternational() {
       globalMode = false; updateGlobalBtn();
