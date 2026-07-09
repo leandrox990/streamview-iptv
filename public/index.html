@@ -389,6 +389,7 @@
   <script>
     const R = "https://raw.githubusercontent.com/Romaxa55/world_ip_tv/master/output/";
     const IPTVORG = "https://iptv-org.github.io/iptv/countries/";
+    const JSONTELES = "https://raw.githubusercontent.com/Alplox/json-teles/main/m3u-playlists/";
     // descarga una lista (por proxy en la web; directo en el APK)
     const fetchList = (url) => fetch("/proxy?url=" + encodeURIComponent(url) + "&raw=1").then((r) => r.text());
     // Países latinos (menú principal), ordenados alfabéticamente
@@ -842,13 +843,15 @@
       const list = $("chanList"); list.innerHTML = ""; $("note").textContent = "";
       for (let i=0;i<8;i++){ const s=document.createElement("div"); s.className="skel"; list.appendChild(s); }
       try {
-        const [ra, io] = await Promise.all([
-          fetchList(R + code + ".m3u").then(parseM3U).catch(() => []),        // Romaxa (verificados)
-          fetchList(IPTVORG + code + ".m3u").then(parseM3U).catch(() => []),  // iptv-org (más canales)
+        const [ra, io, jt] = await Promise.all([
+          fetchList(R + code + ".m3u").then(parseM3U).catch(() => []),         // Romaxa (verificados)
+          fetchList(IPTVORG + code + ".m3u").then(parseM3U).catch(() => []),   // iptv-org (más canales)
+          fetchList(JSONTELES + code + ".m3u").then(parseM3U).catch(() => []), // json-teles (frescos)
         ]);
         const seen = new Set(); const merged = [];
         for (const ch of ra) if (ch.url && !seen.has(ch.url)) { seen.add(ch.url); ch.verified = true; merged.push(ch); }
         for (const ch of io) if (ch.url && !seen.has(ch.url)) { seen.add(ch.url); ch.verified = false; merged.push(ch); }
+        for (const ch of jt) if (ch.url && !seen.has(ch.url)) { seen.add(ch.url); ch.verified = false; merged.push(ch); }
         allChannels = merged; activeGroup = "Todos"; $("search").value = "";
         applyFilters();
         $("chSub").textContent = merged.length + " canales";
