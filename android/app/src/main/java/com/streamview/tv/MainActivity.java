@@ -148,6 +148,12 @@ public class MainActivity extends Activity {
             ui.post(() -> { previewing = false; fsActive = false; player.stop();
                 playerContainer.setVisibility(View.GONE); exitImmersive(); });
         }
+        @JavascriptInterface
+        public void setAspect(final int mode) {
+            ui.post(() -> playerView.setResizeMode(mode == 1
+                    ? androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    : androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT));
+        }
     }
 
     private void applyBounds(int x, int y, int w, int h) {
@@ -194,16 +200,18 @@ public class MainActivity extends Activity {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                 case KeyEvent.KEYCODE_MEDIA_NEXT:
                     web.evaluateJavascript("window.tvNav && window.tvNav(1);", null); showBanner(null); return true;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    web.evaluateJavascript("window.tvNav && window.tvNav(-1);", null); showBanner(null); return true;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                 case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
                     web.evaluateJavascript("window.tvNav && window.tvNav(-1);", null); showBanner(null); return true;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    web.evaluateJavascript("window.tvNav && window.tvNav(1);", null); showBanner(null); return true;
                 case KeyEvent.KEYCODE_BACK:
                 case KeyEvent.KEYCODE_ESCAPE:
                     backToPreview(); return true;
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
-                case KeyEvent.KEYCODE_DPAD_UP:
-                case KeyEvent.KEYCODE_DPAD_DOWN:
                     showBanner(null); return true; // en vivo: sin pausa
             }
         }
